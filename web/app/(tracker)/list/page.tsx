@@ -2,13 +2,15 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useItems, useCreateItem, useUpdateItem, useDeleteItem, buildItemTree, flattenItemTree } from '@/lib/hooks/use-items'
-import { STATUS_CONFIG, PRIORITY_CONFIG } from '@/types'
-import type { ItemWithChildren, ItemStatus, ItemPriority } from '@/types'
+import { useProjects } from '@/lib/hooks/use-projects'
+import { STATUS_CONFIG, PRIORITY_CONFIG, PROJECT_COLORS } from '@/types'
+import type { ItemWithChildren, ItemStatus, ItemPriority, Project } from '@/types'
 import { useUIStore } from '@/lib/stores/ui-store'
 import { ChevronRight, ChevronDown, Plus, Trash2, Calendar } from 'lucide-react'
 
 export default function ListPage() {
   const { data: items, isLoading } = useItems()
+  const { data: projects } = useProjects()
   const createItem = useCreateItem()
   const updateItem = useUpdateItem()
   const deleteItem = useDeleteItem()
@@ -70,10 +72,11 @@ export default function ListPage() {
     <div className="bg-white rounded-lg border border-gray-200">
       {/* Header */}
       <div className="grid grid-cols-12 gap-4 px-4 py-3 border-b border-gray-200 bg-gray-50 text-sm font-medium text-gray-500">
-        <div className="col-span-6">Title</div>
+        <div className="col-span-5">Title</div>
+        <div className="col-span-2">Project</div>
         <div className="col-span-2">Status</div>
         <div className="col-span-2">Priority</div>
-        <div className="col-span-2">Due Date</div>
+        <div className="col-span-1">Due</div>
       </div>
 
       {/* Items */}
@@ -82,6 +85,7 @@ export default function ListPage() {
           <ListRow
             key={item.id}
             item={item}
+            project={projects?.find((p) => p.id === item.project_id)}
             isExpanded={expandedItemIds.has(item.id)}
             isEditing={editingItemId === item.id}
             onToggleExpand={() => toggleExpanded(item.id)}
@@ -114,7 +118,7 @@ export default function ListPage() {
             }
           }}
           placeholder="Add new item..."
-          className="flex-1 text-sm border-0 focus:ring-0 p-0 placeholder-gray-400"
+          className="flex-1 text-sm border-0 focus:ring-0 p-0 bg-transparent text-gray-900 placeholder-gray-400"
         />
       </div>
     </div>
@@ -123,6 +127,7 @@ export default function ListPage() {
 
 function ListRow({
   item,
+  project,
   isExpanded,
   isEditing,
   onToggleExpand,
@@ -133,6 +138,7 @@ function ListRow({
   onClick,
 }: {
   item: ItemWithChildren
+  project?: Project
   isExpanded: boolean
   isEditing: boolean
   onToggleExpand: () => void
@@ -156,13 +162,15 @@ function ListRow({
   const statusConfig = STATUS_CONFIG[item.status]
   const priorityConfig = PRIORITY_CONFIG[item.priority]
 
+  const projectColor = project ? PROJECT_COLORS[project.color] : null
+
   return (
     <div
       className="grid grid-cols-12 gap-4 px-4 py-2 items-center hover:bg-gray-50 group"
       style={{ paddingLeft: `${1 + item.depth * 1.5}rem` }}
     >
       {/* Title */}
-      <div className="col-span-6 flex items-center gap-2">
+      <div className="col-span-5 flex items-center gap-2">
         {/* Expand/collapse button */}
         <button
           onClick={(e) => {
@@ -225,6 +233,17 @@ function ListRow({
         </button>
       </div>
 
+      {/* Project */}
+      <div className="col-span-2">
+        {project && projectColor && (
+          <span
+            className={`px-2 py-1 text-xs font-medium rounded truncate inline-block max-w-full ${projectColor.bgColor} ${projectColor.textColor}`}
+          >
+            {project.title}
+          </span>
+        )}
+      </div>
+
       {/* Status */}
       <div className="col-span-2">
         <button
@@ -250,7 +269,7 @@ function ListRow({
       </div>
 
       {/* Due Date */}
-      <div className="col-span-2 text-sm text-gray-500">
+      <div className="col-span-1 text-sm text-gray-500">
         {item.due_date && (
           <span className="flex items-center gap-1">
             <Calendar className="w-3 h-3" />

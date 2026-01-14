@@ -19,10 +19,38 @@ CREATE TABLE profiles (
 -- =============================================================================
 -- ITEMS TABLE (self-referential for infinite nesting)
 -- =============================================================================
+-- =============================================================================
+-- PROJECTS TABLE
+-- =============================================================================
+CREATE TABLE projects (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+
+    -- Core fields
+    title TEXT NOT NULL,
+    description TEXT,
+
+    -- Customization
+    color TEXT NOT NULL DEFAULT 'blue'
+        CHECK (color IN ('red', 'orange', 'yellow', 'green', 'blue', 'indigo', 'purple', 'pink', 'gray')),
+    icon TEXT,
+
+    -- Ordering
+    position INTEGER NOT NULL DEFAULT 0,
+
+    -- Metadata
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- =============================================================================
+-- ITEMS TABLE (self-referential for infinite nesting)
+-- =============================================================================
 CREATE TABLE items (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
     parent_id UUID REFERENCES items(id) ON DELETE CASCADE,
+    project_id UUID REFERENCES projects(id) ON DELETE SET NULL,
 
     -- Core fields
     title TEXT NOT NULL,
@@ -52,11 +80,17 @@ CREATE TABLE items (
 -- =============================================================================
 -- INDEXES
 -- =============================================================================
+-- Projects indexes
+CREATE INDEX idx_projects_user ON projects(user_id);
+CREATE INDEX idx_projects_user_position ON projects(user_id, position);
+
+-- Items indexes
 CREATE INDEX idx_items_user_parent ON items(user_id, parent_id);
 CREATE INDEX idx_items_user_status ON items(user_id, status);
 CREATE INDEX idx_items_user_due ON items(user_id, due_date);
 CREATE INDEX idx_items_parent_position ON items(parent_id, position);
 CREATE INDEX idx_items_user_position ON items(user_id, position) WHERE parent_id IS NULL;
+CREATE INDEX idx_items_project ON items(project_id);
 
 -- =============================================================================
 -- TRIGGERS
@@ -81,6 +115,24 @@ CREATE TRIGGER trigger_set_item_position
     FOR EACH ROW
     EXECUTE FUNCTION set_item_position();
 
+-- Auto-set position for projects on insert
+CREATE OR REPLACE FUNCTION set_project_position()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.position = 0 THEN
+        SELECT COALESCE(MAX(position), 0) + 1 INTO NEW.position
+        FROM projects
+        WHERE user_id = NEW.user_id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_set_project_position
+    BEFORE INSERT ON projects
+    FOR EACH ROW
+    EXECUTE FUNCTION set_project_position();
+
 -- Auto-update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at()
 RETURNS TRIGGER AS $$
@@ -100,10 +152,40 @@ CREATE TRIGGER trigger_profiles_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at();
 
+CREATE TRIGGER trigger_projects_updated_at
+    BEFORE UPDATE ON projects
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at();
+
+-- =============================================================================
+-- AUTO-CREATE PROFILE ON USER SIGNUP
+-- =============================================================================
+
+-- Function to create a profile when a new user signs up
+CREATE OR REPLACE FUNCTION handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO public.profiles (id, email, display_name)
+    VALUES (
+        NEW.id,
+        NEW.email,
+        COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1))
+    );
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Trigger to run the function on new user creation
+CREATE OR REPLACE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW
+    EXECUTE FUNCTION handle_new_user();
+
 -- =============================================================================
 -- ROW LEVEL SECURITY
 -- =============================================================================
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE items ENABLE ROW LEVEL SECURITY;
 
 -- Profiles: users can only manage their own profile
@@ -118,6 +200,19 @@ CREATE POLICY "Users can update their own profile" ON profiles
 
 CREATE POLICY "Users can delete their own profile" ON profiles
     FOR DELETE USING (auth.uid() = id);
+
+-- Projects: users can only manage their own projects
+CREATE POLICY "Users can view their own projects" ON projects
+    FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create their own projects" ON projects
+    FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own projects" ON projects
+    FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own projects" ON projects
+    FOR DELETE USING (auth.uid() = user_id);
 
 -- Items: users can only manage their own items
 CREATE POLICY "Users can view their own items" ON items

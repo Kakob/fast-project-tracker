@@ -28,6 +28,18 @@ interface UIState {
   // Editing state (for inline editing)
   editingItemId: string | null
   setEditingItemId: (id: string | null) => void
+
+  // Expanded projects in projects view
+  expandedProjectIds: Set<string>
+  toggleProjectExpanded: (projectId: string) => void
+  expandProject: (projectId: string) => void
+  collapseProject: (projectId: string) => void
+
+  // Focus state for keyboard navigation
+  focusedItemId: string | null
+  setFocusedItemId: (id: string | null) => void
+  focusedProjectId: string | null
+  setFocusedProjectId: (id: string | null) => void
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -78,4 +90,35 @@ export const useUIStore = create<UIState>((set) => ({
   // Editing state
   editingItemId: null,
   setEditingItemId: (id) => set({ editingItemId: id }),
+
+  // Expanded projects
+  expandedProjectIds: new Set<string>(),
+  toggleProjectExpanded: (projectId) =>
+    set((state) => {
+      const newSet = new Set(state.expandedProjectIds)
+      if (newSet.has(projectId)) {
+        newSet.delete(projectId)
+      } else {
+        newSet.add(projectId)
+      }
+      return { expandedProjectIds: newSet }
+    }),
+  expandProject: (projectId) =>
+    set((state) => {
+      const newSet = new Set(state.expandedProjectIds)
+      newSet.add(projectId)
+      return { expandedProjectIds: newSet }
+    }),
+  collapseProject: (projectId) =>
+    set((state) => {
+      const newSet = new Set(state.expandedProjectIds)
+      newSet.delete(projectId)
+      return { expandedProjectIds: newSet }
+    }),
+
+  // Focus state
+  focusedItemId: null,
+  setFocusedItemId: (id) => set({ focusedItemId: id }),
+  focusedProjectId: null,
+  setFocusedProjectId: (id) => set({ focusedProjectId: id }),
 }))

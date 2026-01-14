@@ -2,15 +2,17 @@
 
 import { useState, useEffect } from 'react'
 import { useItem, useUpdateItem, useDeleteItem, useItems } from '@/lib/hooks/use-items'
+import { useProjects } from '@/lib/hooks/use-projects'
 import { useUIStore } from '@/lib/stores/ui-store'
-import { STATUS_CONFIG, PRIORITY_CONFIG, STATUS_ORDER } from '@/types'
+import { STATUS_CONFIG, PRIORITY_CONFIG, STATUS_ORDER, PROJECT_COLORS } from '@/types'
 import type { ItemStatus, ItemPriority } from '@/types'
-import { X, Trash2, Calendar, ChevronDown } from 'lucide-react'
+import { X, Trash2, Calendar, ChevronDown, FolderOpen } from 'lucide-react'
 
 export function ItemDetailsPanel() {
   const { selectedItemId, isDetailsPanelOpen, closeDetailsPanel } = useUIStore()
   const { data: item, isLoading } = useItem(selectedItemId)
   const { data: allItems } = useItems()
+  const { data: projects } = useProjects()
   const updateItem = useUpdateItem()
   const deleteItem = useDeleteItem()
 
@@ -67,12 +69,22 @@ export function ItemDetailsPanel() {
     }
   }
 
+  const handleProjectChange = async (projectId: string | null) => {
+    if (item) {
+      await updateItem.mutateAsync({ id: item.id, project_id: projectId })
+    }
+  }
+
   const handleDelete = async () => {
     if (item && confirm('Are you sure you want to delete this item?')) {
       await deleteItem.mutateAsync(item.id)
       closeDetailsPanel()
     }
   }
+
+  // Get current project
+  const currentProject = item?.project_id ? projects?.find((p) => p.id === item.project_id) : null
+  const projectColorConfig = currentProject ? PROJECT_COLORS[currentProject.color] : null
 
   // Get child items
   const childItems = allItems?.filter((i) => i.parent_id === item?.id) || []
@@ -184,6 +196,33 @@ export function ItemDetailsPanel() {
                   className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"
                 />
                 <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Project */}
+            <div>
+              <label className="block text-sm font-medium text-gray-500 mb-2">
+                Project
+              </label>
+              <div className="relative">
+                <select
+                  value={item.project_id || ''}
+                  onChange={(e) => handleProjectChange(e.target.value || null)}
+                  className={`w-full appearance-none px-3 py-2 pl-9 rounded-lg border border-gray-200 text-sm font-medium ${
+                    projectColorConfig
+                      ? `${projectColorConfig.bgColor} ${projectColorConfig.textColor}`
+                      : 'bg-white text-gray-600'
+                  }`}
+                >
+                  <option value="">No project</option>
+                  {projects?.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.title}
+                    </option>
+                  ))}
+                </select>
+                <FolderOpen className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
               </div>
             </div>
 

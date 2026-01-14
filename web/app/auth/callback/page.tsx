@@ -11,8 +11,26 @@ export default function AuthCallbackPage() {
     const handleAuthCallback = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession()
-        
+
         if (session) {
+          // Ensure profile exists for this user
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('id', session.user.id)
+            .single()
+
+          if (!profile) {
+            // Create profile if it doesn't exist
+            await supabase.from('profiles').insert({
+              id: session.user.id,
+              email: session.user.email,
+              display_name: session.user.user_metadata?.full_name ||
+                           session.user.user_metadata?.name ||
+                           session.user.email?.split('@')[0],
+            })
+          }
+
           router.push('/board')
         } else {
           router.push('/sign-in')

@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter, usePathname } from 'next/navigation'
-import { LogOut, LayoutGrid, List, Calendar, Plus } from 'lucide-react'
+import { LogOut, LayoutGrid, List, Calendar, Plus, FolderOpen } from 'lucide-react'
 import { supabase } from '@/lib/supabase-client'
 import { useUIStore } from '@/lib/stores/ui-store'
 import { useCreateItem } from '@/lib/hooks/use-items'
@@ -13,6 +13,7 @@ const VIEW_TABS: { view: ViewType; path: string; label: string; icon: typeof Lay
   { view: 'board', path: '/board', label: 'Board', icon: LayoutGrid },
   { view: 'list', path: '/list', label: 'List', icon: List },
   { view: 'calendar', path: '/calendar', label: 'Calendar', icon: Calendar },
+  { view: 'projects', path: '/projects', label: 'Projects', icon: FolderOpen },
 ]
 
 export function TrackerLayout({ children }: { children: React.ReactNode }) {
@@ -30,6 +31,8 @@ export function TrackerLayout({ children }: { children: React.ReactNode }) {
     ? 'list'
     : pathname.includes('/calendar')
     ? 'calendar'
+    : pathname.includes('/projects')
+    ? 'projects'
     : 'board'
 
   useEffect(() => {
@@ -110,7 +113,7 @@ export function TrackerLayout({ children }: { children: React.ReactNode }) {
                   onFocus={() => setIsQuickAddFocused(true)}
                   onBlur={() => setIsQuickAddFocused(false)}
                   placeholder="Add item... (n)"
-                  className={`w-48 pl-9 pr-3 py-2 text-sm border rounded-lg transition-all ${
+                  className={`w-48 pl-9 pr-3 py-2 text-sm border rounded-lg transition-all bg-white text-gray-900 ${
                     isQuickAddFocused
                       ? 'w-64 border-indigo-500 ring-2 ring-indigo-200'
                       : 'border-gray-300'
