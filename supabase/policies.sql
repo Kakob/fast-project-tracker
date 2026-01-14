@@ -1,0 +1,3 @@
+-- Policies are now included in schema.sql
+-- This file is kept for compatibility with supabase db reset
+-- but all policies are defined in schema.sql
