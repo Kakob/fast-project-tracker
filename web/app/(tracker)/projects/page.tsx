@@ -7,6 +7,22 @@ import { PROJECT_COLORS, STATUS_CONFIG } from '@/types'
 import type { Project, Item, ItemWithChildren, ProjectColor } from '@/types'
 import { useUIStore } from '@/lib/stores/ui-store'
 import { ChevronRight, ChevronDown, Plus, Trash2, FolderOpen, Inbox } from 'lucide-react'
+import { KeyboardShortcutsHelp } from '@/components/keyboard-shortcuts-help'
+import type { ShortcutGroup } from '@/components/keyboard-shortcuts-help'
+
+const PROJECTS_SHORTCUTS: ShortcutGroup[] = [
+  {
+    title: 'Projects',
+    shortcuts: [
+      { key: '\u2191 / \u2193', description: 'Navigate between items' },
+      { key: 'Enter', description: 'Expand / collapse' },
+      { key: '\u2192', description: 'Open details panel' },
+      { key: '\u2190', description: 'Close details panel' },
+      { key: 's', description: 'Add subtask' },
+      { key: 't', description: 'Add task to project' },
+    ],
+  },
+]
 
 type FocusableItem = {
   type: 'create-project' | 'project' | 'item'
@@ -364,6 +380,7 @@ export default function ProjectsPage() {
   }
 
   return (
+    <>
     <div className="space-y-6">
       {/* Create new project */}
       <div
@@ -575,6 +592,8 @@ export default function ProjectsPage() {
         </div>
       )}
     </div>
+    <KeyboardShortcutsHelp groups={PROJECTS_SHORTCUTS} />
+    </>
   )
 }
 

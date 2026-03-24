@@ -40,6 +40,10 @@ interface UIState {
   setFocusedItemId: (id: string | null) => void
   focusedProjectId: string | null
   setFocusedProjectId: (id: string | null) => void
+
+  // Keyboard shortcuts help
+  isShortcutsHelpOpen: boolean
+  toggleShortcutsHelp: () => void
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -121,4 +125,8 @@ export const useUIStore = create<UIState>((set) => ({
   setFocusedItemId: (id) => set({ focusedItemId: id }),
   focusedProjectId: null,
   setFocusedProjectId: (id) => set({ focusedProjectId: id }),
+
+  // Keyboard shortcuts help
+  isShortcutsHelpOpen: false,
+  toggleShortcutsHelp: () => set((state) => ({ isShortcutsHelpOpen: !state.isShortcutsHelpOpen })),
 }))

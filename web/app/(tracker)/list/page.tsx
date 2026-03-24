@@ -7,6 +7,21 @@ import { STATUS_CONFIG, PRIORITY_CONFIG, PROJECT_COLORS } from '@/types'
 import type { ItemWithChildren, ItemStatus, ItemPriority, Project } from '@/types'
 import { useUIStore } from '@/lib/stores/ui-store'
 import { ChevronRight, ChevronDown, Plus, Trash2, Calendar } from 'lucide-react'
+import { KeyboardShortcutsHelp } from '@/components/keyboard-shortcuts-help'
+import type { ShortcutGroup } from '@/components/keyboard-shortcuts-help'
+
+const LIST_SHORTCUTS: ShortcutGroup[] = [
+  {
+    title: 'List',
+    shortcuts: [
+      { key: '\u2191 / \u2193', description: 'Navigate between rows' },
+      { key: 'Enter', description: 'Expand / collapse children' },
+      { key: '\u2192', description: 'Open details panel' },
+      { key: '\u2190', description: 'Close details panel' },
+      { key: 'e', description: 'Edit item title' },
+    ],
+  },
+]
 
 export default function ListPage() {
   const { data: items, isLoading } = useItems()
@@ -14,10 +29,112 @@ export default function ListPage() {
   const createItem = useCreateItem()
   const updateItem = useUpdateItem()
   const deleteItem = useDeleteItem()
-  const { expandedItemIds, toggleExpanded, editingItemId, setEditingItemId, openDetailsPanel } = useUIStore()
+  const {
+    expandedItemIds,
+    toggleExpanded,
+    editingItemId,
+    setEditingItemId,
+    openDetailsPanel,
+    closeDetailsPanel,
+    isDetailsPanelOpen,
+    focusedItemId,
+    setFocusedItemId,
+  } = useUIStore()
 
   const [newItemTitle, setNewItemTitle] = useState('')
   const newItemRef = useRef<HTMLInputElement>(null)
+  const lastFocusBeforeDetailsPanelRef = useRef<string | null>(null)
+
+  const tree = buildItemTree(items || [])
+  const flatItems = flattenItemTree(tree)
+
+  // Filter to only show visible items (based on expanded state)
+  const visibleItems = flatItems.filter((item) => {
+    if (!item.parent_id) return true
+    // Check if all ancestors are expanded
+    let current = items?.find((i) => i.id === item.parent_id)
+    while (current) {
+      if (!expandedItemIds.has(current.id)) return false
+      current = items?.find((i) => i.id === current?.parent_id)
+    }
+    return true
+  })
+
+  // Focus first item on mount
+  useEffect(() => {
+    if (visibleItems.length > 0 && !focusedItemId) {
+      setFocusedItemId(visibleItems[0].id)
+    }
+  }, [visibleItems.length > 0]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement
+      const tagName = target.tagName
+      const isInputField = tagName === 'INPUT' || tagName === 'TEXTAREA'
+
+      // ArrowUp/ArrowDown always work (even in inputs)
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        e.preventDefault()
+        if (visibleItems.length === 0) return
+
+        const currentIndex = visibleItems.findIndex((item) => item.id === focusedItemId)
+        let nextIndex: number
+
+        if (e.key === 'ArrowUp') {
+          nextIndex = currentIndex <= 0 ? visibleItems.length - 1 : currentIndex - 1
+        } else {
+          nextIndex = currentIndex >= visibleItems.length - 1 ? 0 : currentIndex + 1
+        }
+
+        setFocusedItemId(visibleItems[nextIndex].id)
+        return
+      }
+
+      // All other shortcuts are ignored when in input fields
+      if (isInputField) return
+
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        if (focusedItemId) {
+          toggleExpanded(focusedItemId)
+        }
+        return
+      }
+
+      if (e.key === 'ArrowRight') {
+        e.preventDefault()
+        if (focusedItemId) {
+          lastFocusBeforeDetailsPanelRef.current = focusedItemId
+          openDetailsPanel(focusedItemId)
+        }
+        return
+      }
+
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault()
+        if (isDetailsPanelOpen) {
+          closeDetailsPanel()
+          if (lastFocusBeforeDetailsPanelRef.current) {
+            setFocusedItemId(lastFocusBeforeDetailsPanelRef.current)
+          }
+        }
+        return
+      }
+
+      if (e.key === 'e') {
+        e.preventDefault()
+        if (focusedItemId) {
+          setEditingItemId(focusedItemId)
+        }
+        return
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [visibleItems, focusedItemId, isDetailsPanelOpen, toggleExpanded, openDetailsPanel, closeDetailsPanel, setFocusedItemId, setEditingItemId])
 
   if (isLoading) {
     return (
@@ -26,9 +143,6 @@ export default function ListPage() {
       </div>
     )
   }
-
-  const tree = buildItemTree(items || [])
-  const flatItems = flattenItemTree(tree)
 
   const handleCreateItem = async (parentId?: string) => {
     if (!newItemTitle.trim()) return
@@ -56,18 +170,6 @@ export default function ListPage() {
     await deleteItem.mutateAsync(id)
   }
 
-  // Filter to only show visible items (based on expanded state)
-  const visibleItems = flatItems.filter((item) => {
-    if (!item.parent_id) return true
-    // Check if all ancestors are expanded
-    let current = items?.find((i) => i.id === item.parent_id)
-    while (current) {
-      if (!expandedItemIds.has(current.id)) return false
-      current = items?.find((i) => i.id === current?.parent_id)
-    }
-    return true
-  })
-
   return (
     <div className="bg-white rounded-lg border border-gray-200">
       {/* Header */}
@@ -88,12 +190,14 @@ export default function ListPage() {
             project={projects?.find((p) => p.id === item.project_id)}
             isExpanded={expandedItemIds.has(item.id)}
             isEditing={editingItemId === item.id}
+            isFocused={focusedItemId === item.id}
             onToggleExpand={() => toggleExpanded(item.id)}
             onStartEdit={() => setEditingItemId(item.id)}
             onTitleChange={(title) => handleTitleChange(item.id, title)}
             onStatusCycle={() => handleStatusCycle(item)}
             onDelete={() => handleDelete(item.id)}
             onClick={() => openDetailsPanel(item.id)}
+            onMouseEnter={() => setFocusedItemId(item.id)}
           />
         ))}
 
@@ -121,6 +225,8 @@ export default function ListPage() {
           className="flex-1 text-sm border-0 focus:ring-0 p-0 bg-transparent text-gray-900 placeholder-gray-400"
         />
       </div>
+
+      <KeyboardShortcutsHelp groups={LIST_SHORTCUTS} />
     </div>
   )
 }
@@ -130,23 +236,27 @@ function ListRow({
   project,
   isExpanded,
   isEditing,
+  isFocused,
   onToggleExpand,
   onStartEdit,
   onTitleChange,
   onStatusCycle,
   onDelete,
   onClick,
+  onMouseEnter,
 }: {
   item: ItemWithChildren
   project?: Project
   isExpanded: boolean
   isEditing: boolean
+  isFocused: boolean
   onToggleExpand: () => void
   onStartEdit: () => void
   onTitleChange: (title: string) => void
   onStatusCycle: () => void
   onDelete: () => void
   onClick: () => void
+  onMouseEnter: () => void
 }) {
   const [editValue, setEditValue] = useState(item.title)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -166,8 +276,11 @@ function ListRow({
 
   return (
     <div
-      className="grid grid-cols-12 gap-4 px-4 py-2 items-center hover:bg-gray-50 group"
+      className={`grid grid-cols-12 gap-4 px-4 py-2 items-center group ${
+        isFocused ? 'bg-indigo-50 ring-1 ring-inset ring-indigo-200' : 'hover:bg-gray-50'
+      }`}
       style={{ paddingLeft: `${1 + item.depth * 1.5}rem` }}
+      onMouseEnter={onMouseEnter}
     >
       {/* Title */}
       <div className="col-span-5 flex items-center gap-2">

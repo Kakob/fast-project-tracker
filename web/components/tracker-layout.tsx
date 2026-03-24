@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter, usePathname } from 'next/navigation'
-import { LogOut, LayoutGrid, List, Calendar, Plus, FolderOpen } from 'lucide-react'
+import { LogOut, LayoutGrid, List, Calendar, Plus, FolderOpen, Keyboard } from 'lucide-react'
 import { supabase } from '@/lib/supabase-client'
 import { useUIStore } from '@/lib/stores/ui-store'
 import { useCreateItem } from '@/lib/hooks/use-items'
@@ -19,7 +19,7 @@ const VIEW_TABS: { view: ViewType; path: string; label: string; icon: typeof Lay
 export function TrackerLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
-  const { setCurrentView } = useUIStore()
+  const { setCurrentView, isDetailsPanelOpen, toggleShortcutsHelp } = useUIStore()
   const createItem = useCreateItem()
 
   const [quickAddValue, setQuickAddValue] = useState('')
@@ -59,16 +59,28 @@ export function TrackerLayout({ children }: { children: React.ReactNode }) {
   // Global keyboard shortcut for quick add
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const isInput = ['INPUT', 'TEXTAREA'].includes((e.target as Element)?.tagName)
       // Press 'n' to focus quick add (when not in an input)
-      if (e.key === 'n' && !['INPUT', 'TEXTAREA'].includes((e.target as Element)?.tagName)) {
+      if (e.key === 'n' && !isInput) {
         e.preventDefault()
         quickAddRef.current?.focus()
+      }
+      // Press '?' to toggle keyboard shortcuts help
+      if (e.key === '?' && !isInput) {
+        e.preventDefault()
+        toggleShortcutsHelp()
+      }
+      // Press 1-4 to switch views
+      if (!isInput && ['1', '2', '3', '4'].includes(e.key)) {
+        e.preventDefault()
+        const tab = VIEW_TABS[parseInt(e.key) - 1]
+        if (tab) router.push(tab.path)
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [])
+  }, [toggleShortcutsHelp, router])
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -123,6 +135,14 @@ export function TrackerLayout({ children }: { children: React.ReactNode }) {
               </form>
 
               <button
+                onClick={toggleShortcutsHelp}
+                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                title="Keyboard shortcuts (?)"
+              >
+                <Keyboard className="w-5 h-5" />
+              </button>
+
+              <button
                 onClick={handleSignOut}
                 className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                 title="Sign out"
@@ -142,7 +162,7 @@ export function TrackerLayout({ children }: { children: React.ReactNode }) {
       </main>
 
       {/* Details Panel */}
-      <ItemDetailsPanel />
+      {isDetailsPanelOpen && <ItemDetailsPanel />}
     </div>
   )
 }

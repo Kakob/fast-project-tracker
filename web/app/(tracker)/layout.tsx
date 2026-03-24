@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase-client'
+import { useAuth } from '@/lib/auth-context'
 import { TrackerLayout } from '@/components/tracker-layout'
 
 export default function TrackerRouteLayout({
@@ -11,31 +11,13 @@ export default function TrackerRouteLayout({
   children: React.ReactNode
 }) {
   const router = useRouter()
-  const [isLoading, setIsLoading] = useState(true)
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const { session, isLoading } = useAuth()
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        router.push('/sign-in')
-      } else {
-        setIsAuthenticated(true)
-      }
-      setIsLoading(false)
+    if (!isLoading && !session) {
+      router.push('/sign-in')
     }
-
-    checkAuth()
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT' || !session) {
-        router.push('/sign-in')
-      }
-    })
-
-    return () => subscription.unsubscribe()
-  }, [router])
+  }, [session, isLoading, router])
 
   if (isLoading) {
     return (
@@ -45,7 +27,7 @@ export default function TrackerRouteLayout({
     )
   }
 
-  if (!isAuthenticated) {
+  if (!session) {
     return null
   }
 

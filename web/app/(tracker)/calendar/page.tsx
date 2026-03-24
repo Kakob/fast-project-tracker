@@ -1,18 +1,41 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useItems, useUpdateItem } from '@/lib/hooks/use-items'
 import { PRIORITY_CONFIG, STATUS_CONFIG } from '@/types'
 import type { Item } from '@/types'
 import { useUIStore } from '@/lib/stores/ui-store'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { KeyboardShortcutsHelp } from '@/components/keyboard-shortcuts-help'
+import type { ShortcutGroup } from '@/components/keyboard-shortcuts-help'
+
+const CALENDAR_SHORTCUTS: ShortcutGroup[] = [
+  {
+    title: 'Calendar',
+    shortcuts: [
+      { key: '\u2191 / \u2193', description: 'Navigate between items' },
+      { key: '\u2192 / Enter', description: 'Open details panel' },
+      { key: '\u2190', description: 'Close details panel' },
+      { key: '[', description: 'Previous month' },
+      { key: ']', description: 'Next month' },
+      { key: 't', description: 'Go to today' },
+    ],
+  },
+]
 
 export default function CalendarPage() {
   const { data: items, isLoading } = useItems()
   const updateItem = useUpdateItem()
-  const { openDetailsPanel } = useUIStore()
+  const {
+    openDetailsPanel,
+    closeDetailsPanel,
+    isDetailsPanelOpen,
+    focusedItemId,
+    setFocusedItemId,
+  } = useUIStore()
 
   const [currentDate, setCurrentDate] = useState(new Date())
+  const lastFocusBeforeDetailsPanelRef = useRef<string | null>(null)
 
   const { year, month, days, firstDayOfWeek } = useMemo(() => {
     const year = currentDate.getFullYear()
@@ -50,6 +73,25 @@ export default function CalendarPage() {
     return map
   }, [items])
 
+  // Build flat focusable items array sorted by date then position
+  const focusableItems = useMemo(() => {
+    const result: Item[] = []
+    const sortedKeys = Array.from(itemsByDate.keys()).sort()
+    for (const dateKey of sortedKeys) {
+      const dayItems = itemsByDate.get(dateKey)!
+      const sorted = [...dayItems].sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+      result.push(...sorted)
+    }
+    return result
+  }, [itemsByDate])
+
+  // Focus first item on mount
+  useEffect(() => {
+    if (focusableItems.length > 0 && !focusedItemId) {
+      setFocusedItemId(focusableItems[0].id)
+    }
+  }, [focusableItems, focusedItemId, setFocusedItemId])
+
   const goToPreviousMonth = () => {
     setCurrentDate(new Date(year, month - 1, 1))
   }
@@ -61,6 +103,84 @@ export default function CalendarPage() {
   const goToToday = () => {
     setCurrentDate(new Date())
   }
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement
+      const tagName = target.tagName
+
+      // Allow ArrowUp/ArrowDown in inputs, block other shortcuts
+      const isInput = tagName === 'INPUT' || tagName === 'TEXTAREA'
+      if (isInput && e.key !== 'ArrowUp' && e.key !== 'ArrowDown') {
+        return
+      }
+
+      switch (e.key) {
+        case 'ArrowUp': {
+          e.preventDefault()
+          if (focusableItems.length === 0) return
+          const currentIndex = focusableItems.findIndex((item) => item.id === focusedItemId)
+          const prevIndex = currentIndex <= 0 ? focusableItems.length - 1 : currentIndex - 1
+          setFocusedItemId(focusableItems[prevIndex].id)
+          break
+        }
+        case 'ArrowDown': {
+          e.preventDefault()
+          if (focusableItems.length === 0) return
+          const currentIndex = focusableItems.findIndex((item) => item.id === focusedItemId)
+          const nextIndex = currentIndex >= focusableItems.length - 1 ? 0 : currentIndex + 1
+          setFocusedItemId(focusableItems[nextIndex].id)
+          break
+        }
+        case 'Enter':
+        case 'ArrowRight': {
+          if (focusedItemId) {
+            e.preventDefault()
+            lastFocusBeforeDetailsPanelRef.current = focusedItemId
+            openDetailsPanel(focusedItemId)
+          }
+          break
+        }
+        case 'ArrowLeft': {
+          if (isDetailsPanelOpen) {
+            e.preventDefault()
+            closeDetailsPanel()
+            if (lastFocusBeforeDetailsPanelRef.current) {
+              setFocusedItemId(lastFocusBeforeDetailsPanelRef.current)
+              lastFocusBeforeDetailsPanelRef.current = null
+            }
+          }
+          break
+        }
+        case '[': {
+          e.preventDefault()
+          goToPreviousMonth()
+          break
+        }
+        case ']': {
+          e.preventDefault()
+          goToNextMonth()
+          break
+        }
+        case 't': {
+          e.preventDefault()
+          goToToday()
+          break
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [
+    focusableItems,
+    focusedItemId,
+    setFocusedItemId,
+    openDetailsPanel,
+    closeDetailsPanel,
+    isDetailsPanelOpen,
+  ])
 
   const handleDrop = async (e: React.DragEvent, day: number) => {
     e.preventDefault()
@@ -179,8 +299,10 @@ export default function CalendarPage() {
                       <CalendarItem
                         key={item.id}
                         item={item}
+                        isFocused={focusedItemId === item.id}
                         onDragStart={handleDragStart}
                         onClick={() => openDetailsPanel(item.id)}
+                        onMouseEnter={() => setFocusedItemId(item.id)}
                       />
                     ))}
                     {dayItems.length > 3 && (
@@ -195,18 +317,24 @@ export default function CalendarPage() {
           )
         })}
       </div>
+
+      <KeyboardShortcutsHelp groups={CALENDAR_SHORTCUTS} />
     </div>
   )
 }
 
 function CalendarItem({
   item,
+  isFocused,
   onDragStart,
   onClick,
+  onMouseEnter,
 }: {
   item: Item
+  isFocused: boolean
   onDragStart: (e: React.DragEvent, itemId: string) => void
   onClick: () => void
+  onMouseEnter: () => void
 }) {
   const statusConfig = STATUS_CONFIG[item.status]
 
@@ -215,7 +343,10 @@ function CalendarItem({
       draggable
       onDragStart={(e) => onDragStart(e, item.id)}
       onClick={onClick}
-      className={`text-xs px-2 py-1 rounded cursor-pointer truncate ${statusConfig.bgColor} ${statusConfig.color} hover:opacity-80`}
+      onMouseEnter={onMouseEnter}
+      className={`text-xs px-2 py-1 rounded cursor-pointer truncate ${statusConfig.bgColor} ${statusConfig.color} hover:opacity-80 ${
+        isFocused ? 'ring-2 ring-indigo-500 ring-offset-1' : ''
+      }`}
     >
       {item.title}
     </div>
