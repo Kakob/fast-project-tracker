@@ -6,7 +6,8 @@ import { useProjects } from '@/lib/hooks/use-projects'
 import { STATUS_CONFIG, PRIORITY_CONFIG, PROJECT_COLORS } from '@/types'
 import type { ItemWithChildren, ItemStatus, ItemPriority, Project } from '@/types'
 import { useUIStore } from '@/lib/stores/ui-store'
-import { ChevronRight, ChevronDown, Plus, Trash2, Calendar } from 'lucide-react'
+import { ChevronRight, ChevronDown, Plus, Trash2, Calendar, Archive } from 'lucide-react'
+import { TimerButton } from '@/components/timer/timer-button'
 import { KeyboardShortcutsHelp } from '@/components/keyboard-shortcuts-help'
 import type { ShortcutGroup } from '@/components/keyboard-shortcuts-help'
 
@@ -45,7 +46,8 @@ export default function ListPage() {
   const newItemRef = useRef<HTMLInputElement>(null)
   const lastFocusBeforeDetailsPanelRef = useRef<string | null>(null)
 
-  const tree = buildItemTree(items || [])
+  const activeItems = items?.filter((item) => item.status !== 'archived') || []
+  const tree = buildItemTree(activeItems)
   const flatItems = flattenItemTree(tree)
 
   // Filter to only show visible items (based on expanded state)
@@ -196,6 +198,7 @@ export default function ListPage() {
             onTitleChange={(title) => handleTitleChange(item.id, title)}
             onStatusCycle={() => handleStatusCycle(item)}
             onDelete={() => handleDelete(item.id)}
+            onArchive={() => updateItem.mutateAsync({ id: item.id, status: 'archived' })}
             onClick={() => openDetailsPanel(item.id)}
             onMouseEnter={() => setFocusedItemId(item.id)}
           />
@@ -242,6 +245,7 @@ function ListRow({
   onTitleChange,
   onStatusCycle,
   onDelete,
+  onArchive,
   onClick,
   onMouseEnter,
 }: {
@@ -255,6 +259,7 @@ function ListRow({
   onTitleChange: (title: string) => void
   onStatusCycle: () => void
   onDelete: () => void
+  onArchive: () => void
   onClick: () => void
   onMouseEnter: () => void
 }) {
@@ -333,6 +338,21 @@ function ListRow({
             {item.title}
           </span>
         )}
+
+        {/* Timer button (shown on hover or when active) */}
+        <TimerButton itemId={item.id} size="sm" />
+
+        {/* Archive button (shown on hover) */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onArchive()
+          }}
+          className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-gray-600 transition-opacity"
+          title="Archive"
+        >
+          <Archive className="w-4 h-4" />
+        </button>
 
         {/* Delete button (shown on hover) */}
         <button

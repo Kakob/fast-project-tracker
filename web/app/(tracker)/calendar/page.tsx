@@ -58,11 +58,11 @@ export default function CalendarPage() {
     return { year, month, days, firstDayOfWeek }
   }, [currentDate])
 
-  // Group items by due date
+  // Group items by due date (exclude archived)
   const itemsByDate = useMemo(() => {
     const map = new Map<string, Item[]>()
     items?.forEach((item) => {
-      if (item.due_date) {
+      if (item.due_date && item.status !== 'archived') {
         const dateKey = item.due_date
         if (!map.has(dateKey)) {
           map.set(dateKey, [])

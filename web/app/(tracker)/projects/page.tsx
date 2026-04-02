@@ -2,11 +2,11 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useProjects, useCreateProject, useDeleteProject } from '@/lib/hooks/use-projects'
-import { useItems, useCreateItem, buildItemTree } from '@/lib/hooks/use-items'
+import { useItems, useCreateItem, useUpdateItem, buildItemTree } from '@/lib/hooks/use-items'
 import { PROJECT_COLORS, STATUS_CONFIG } from '@/types'
 import type { Project, Item, ItemWithChildren, ProjectColor } from '@/types'
 import { useUIStore } from '@/lib/stores/ui-store'
-import { ChevronRight, ChevronDown, Plus, Trash2, FolderOpen, Inbox } from 'lucide-react'
+import { ChevronRight, ChevronDown, Plus, Trash2, FolderOpen, Inbox, Archive } from 'lucide-react'
 import { KeyboardShortcutsHelp } from '@/components/keyboard-shortcuts-help'
 import type { ShortcutGroup } from '@/components/keyboard-shortcuts-help'
 
@@ -36,6 +36,7 @@ export default function ProjectsPage() {
   const createProject = useCreateProject()
   const deleteProject = useDeleteProject()
   const createItem = useCreateItem()
+  const updateItem = useUpdateItem()
   const {
     expandedProjectIds,
     expandedItemIds,
@@ -68,11 +69,10 @@ export default function ProjectsPage() {
   } | null>(null)
   const isLoading = projectsLoading || itemsLoading
 
-  // Group items by project (only root items - items without parents)
+  // Group items by project (only root items, exclude archived)
   const rootItemsByProject = new Map<string | null, Item[]>()
   items?.forEach((item) => {
-    // Only include root items (no parent) in project grouping
-    if (!item.parent_id) {
+    if (!item.parent_id && item.status !== 'archived') {
       const key = item.project_id
       if (!rootItemsByProject.has(key)) {
         rootItemsByProject.set(key, [])
@@ -793,6 +793,7 @@ function ProjectItemRow({
   subtaskInputRef: (itemId: string, el: HTMLInputElement | null) => void
 }) {
   const statusConfig = STATUS_CONFIG[item.status]
+  const archiveItem = useUpdateItem()
   const { expandedItemIds, toggleExpanded, setFocusedItemId, setFocusedProjectId, focusedItemId: currentFocusedItemId } = useUIStore()
   const isExpanded = expandedItemIds.has(item.id)
   const hasChildren = item.children.length > 0
@@ -824,7 +825,7 @@ function ProjectItemRow({
   return (
     <>
       <div
-        className={`flex items-center gap-3 px-4 py-2 hover:bg-gray-50 cursor-pointer ${
+        className={`flex items-center gap-3 px-4 py-2 hover:bg-gray-50 cursor-pointer group ${
           isFocused ? 'bg-indigo-50 ring-1 ring-indigo-200' : ''
         }`}
         style={{ paddingLeft: `${1 + item.depth * 1.5}rem` }}
@@ -855,6 +856,16 @@ function ProjectItemRow({
         {hasChildren && (
           <span className="text-xs text-gray-400">({item.children.length})</span>
         )}
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            archiveItem.mutateAsync({ id: item.id, status: 'archived' })
+          }}
+          className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-gray-600 transition-opacity ml-auto"
+          title="Archive"
+        >
+          <Archive className="w-4 h-4" />
+        </button>
       </div>
 
       {/* Render children if expanded */}

@@ -44,6 +44,14 @@ interface UIState {
   // Keyboard shortcuts help
   isShortcutsHelpOpen: boolean
   toggleShortcutsHelp: () => void
+
+  // Active timer state (for ticking display)
+  activeTimerItemId: string | null
+  activeTimerStartedAt: string | null
+  timerElapsedSeconds: number
+  setActiveTimer: (itemId: string, startedAt: string) => void
+  clearActiveTimer: () => void
+  setTimerElapsed: (seconds: number) => void
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -129,4 +137,14 @@ export const useUIStore = create<UIState>((set) => ({
   // Keyboard shortcuts help
   isShortcutsHelpOpen: false,
   toggleShortcutsHelp: () => set((state) => ({ isShortcutsHelpOpen: !state.isShortcutsHelpOpen })),
+
+  // Active timer
+  activeTimerItemId: null,
+  activeTimerStartedAt: null,
+  timerElapsedSeconds: 0,
+  setActiveTimer: (itemId, startedAt) =>
+    set({ activeTimerItemId: itemId, activeTimerStartedAt: startedAt }),
+  clearActiveTimer: () =>
+    set({ activeTimerItemId: null, activeTimerStartedAt: null, timerElapsedSeconds: 0 }),
+  setTimerElapsed: (seconds) => set({ timerElapsedSeconds: seconds }),
 }))

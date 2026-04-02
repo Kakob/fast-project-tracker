@@ -14,6 +14,7 @@ const GLOBAL_SHORTCUTS: ShortcutGroup = {
     { key: '1-4', description: 'Switch view (Board, List, Calendar, Projects)' },
     { key: 'n', description: 'Focus quick add input' },
     { key: '?', description: 'Toggle keyboard shortcuts' },
+    { key: 't', description: 'Start/stop timer on focused item' },
   ],
 }
 

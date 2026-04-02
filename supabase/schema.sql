@@ -78,6 +78,27 @@ CREATE TABLE items (
 );
 
 -- =============================================================================
+-- TIME ENTRIES TABLE (for time tracking)
+-- =============================================================================
+CREATE TABLE time_entries (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    item_id UUID NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+
+    -- Timing
+    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    ended_at TIMESTAMPTZ,              -- NULL = currently running
+    duration_seconds INTEGER,           -- computed on stop for fast aggregation
+
+    -- Optional note
+    note TEXT,
+
+    -- Metadata
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- =============================================================================
 -- INDEXES
 -- =============================================================================
 -- Projects indexes
@@ -91,6 +112,12 @@ CREATE INDEX idx_items_user_due ON items(user_id, due_date);
 CREATE INDEX idx_items_parent_position ON items(parent_id, position);
 CREATE INDEX idx_items_user_position ON items(user_id, position) WHERE parent_id IS NULL;
 CREATE INDEX idx_items_project ON items(project_id);
+
+-- Time entries indexes
+CREATE INDEX idx_time_entries_user ON time_entries(user_id);
+CREATE INDEX idx_time_entries_item ON time_entries(item_id);
+CREATE INDEX idx_time_entries_user_running ON time_entries(user_id) WHERE ended_at IS NULL;
+CREATE INDEX idx_time_entries_user_started ON time_entries(user_id, started_at);
 
 -- =============================================================================
 -- TRIGGERS
@@ -157,6 +184,11 @@ CREATE TRIGGER trigger_projects_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at();
 
+CREATE TRIGGER trigger_time_entries_updated_at
+    BEFORE UPDATE ON time_entries
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at();
+
 -- =============================================================================
 -- AUTO-CREATE PROFILE ON USER SIGNUP
 -- =============================================================================
@@ -187,6 +219,7 @@ CREATE OR REPLACE TRIGGER on_auth_user_created
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE time_entries ENABLE ROW LEVEL SECURITY;
 
 -- Profiles: users can only manage their own profile
 CREATE POLICY "Users can view their own profile" ON profiles
@@ -225,4 +258,17 @@ CREATE POLICY "Users can update their own items" ON items
     FOR UPDATE USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can delete their own items" ON items
+    FOR DELETE USING (auth.uid() = user_id);
+
+-- Time entries: users can only manage their own time entries
+CREATE POLICY "Users can view their own time entries" ON time_entries
+    FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create their own time entries" ON time_entries
+    FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own time entries" ON time_entries
+    FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own time entries" ON time_entries
     FOR DELETE USING (auth.uid() = user_id);

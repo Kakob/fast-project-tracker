@@ -3,7 +3,7 @@
 export type ItemStatus = 'todo' | 'in_progress' | 'done' | 'archived'
 export type ItemPriority = 'none' | 'low' | 'medium' | 'high' | 'urgent'
 export type ProjectColor = 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'indigo' | 'purple' | 'pink' | 'gray'
-export type ViewType = 'board' | 'list' | 'calendar' | 'projects'
+export type ViewType = 'board' | 'list' | 'calendar' | 'projects' | 'archive'
 
 export interface Item {
   id: string
@@ -47,6 +47,31 @@ export interface Project {
   position: number
   created_at: string
   updated_at: string
+}
+
+// Time tracking
+export interface TimeEntry {
+  id: string
+  user_id: string
+  item_id: string
+  started_at: string   // ISO datetime
+  ended_at: string | null
+  duration_seconds: number | null
+  note: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateTimeEntryInput {
+  item_id: string
+  started_at?: string
+  note?: string | null
+}
+
+export interface UpdateTimeEntryInput {
+  ended_at?: string | null
+  duration_seconds?: number | null
+  note?: string | null
 }
 
 // For creating new projects

@@ -1,11 +1,13 @@
 'use client'
 
-import { useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useItems, useUpdateItem } from '@/lib/hooks/use-items'
-import { STATUS_ORDER, STATUS_CONFIG, PRIORITY_CONFIG } from '@/types'
-import type { Item, ItemStatus } from '@/types'
+import { useProjects } from '@/lib/hooks/use-projects'
+import { STATUS_CONFIG, PRIORITY_CONFIG, PROJECT_COLORS } from '@/types'
+import type { Item, ItemStatus, Project } from '@/types'
 import { useUIStore } from '@/lib/stores/ui-store'
-import { Calendar, ChevronRight } from 'lucide-react'
+import { Calendar, ChevronRight, Archive } from 'lucide-react'
+import { TimerButton } from '@/components/timer/timer-button'
 import { KeyboardShortcutsHelp } from '@/components/keyboard-shortcuts-help'
 import type { ShortcutGroup } from '@/components/keyboard-shortcuts-help'
 
@@ -20,8 +22,11 @@ const BOARD_SHORTCUTS: ShortcutGroup[] = [
   },
 ]
 
+const ACTIVE_STATUSES: ItemStatus[] = ['todo', 'in_progress', 'done']
+
 export default function BoardPage() {
   const { data: items, isLoading } = useItems()
+  const { data: projects } = useProjects()
   const updateItem = useUpdateItem()
   const {
     openDetailsPanel,
@@ -32,53 +37,44 @@ export default function BoardPage() {
   } = useUIStore()
 
   const lastFocusBeforeDetailsPanelRef = useRef<string | null>(null)
+  const [archiveHover, setArchiveHover] = useState(false)
 
-  // Group items by status (only show root items, not children)
-  const itemsByStatus = STATUS_ORDER.reduce((acc, status) => {
+  // Group non-archived items by status (only root items)
+  const itemsByStatus = ACTIVE_STATUSES.reduce((acc, status) => {
     acc[status] = items?.filter((item) => item.status === status && !item.parent_id) || []
     return acc
   }, {} as Record<ItemStatus, Item[]>)
 
-  // Build flat focusable items array ordered by STATUS_ORDER columns, top-to-bottom within each
   const focusableItems = useMemo(() => {
     const result: Item[] = []
-    for (const status of STATUS_ORDER) {
+    for (const status of ACTIVE_STATUSES) {
       const statusItems = items?.filter((item) => item.status === status && !item.parent_id) || []
       result.push(...statusItems)
     }
     return result
   }, [items])
 
-  // Focus first item on mount (when items load)
   useEffect(() => {
     if (focusableItems.length > 0 && !focusedItemId) {
       setFocusedItemId(focusableItems[0].id)
     }
   }, [focusableItems, focusedItemId, setFocusedItemId])
 
-  // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const tagName = (e.target as Element)?.tagName
       const isInput = tagName === 'INPUT' || tagName === 'TEXTAREA'
-
-      // Allow ArrowUp/ArrowDown even in inputs; block other shortcuts in inputs
-      if (isInput && e.key !== 'ArrowUp' && e.key !== 'ArrowDown') {
-        return
-      }
-
+      if (isInput && e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
       if (focusableItems.length === 0) return
 
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        const currentIndex = focusableItems.findIndex((item) => item.id === focusedItemId)
-        const nextIndex = currentIndex < focusableItems.length - 1 ? currentIndex + 1 : 0
-        setFocusedItemId(focusableItems[nextIndex].id)
+        const idx = focusableItems.findIndex((item) => item.id === focusedItemId)
+        setFocusedItemId(focusableItems[idx < focusableItems.length - 1 ? idx + 1 : 0].id)
       } else if (e.key === 'ArrowUp') {
         e.preventDefault()
-        const currentIndex = focusableItems.findIndex((item) => item.id === focusedItemId)
-        const prevIndex = currentIndex > 0 ? currentIndex - 1 : focusableItems.length - 1
-        setFocusedItemId(focusableItems[prevIndex].id)
+        const idx = focusableItems.findIndex((item) => item.id === focusedItemId)
+        setFocusedItemId(focusableItems[idx > 0 ? idx - 1 : focusableItems.length - 1].id)
       } else if (e.key === 'Enter' || e.key === 'ArrowRight') {
         if (focusedItemId) {
           e.preventDefault()
@@ -90,23 +86,14 @@ export default function BoardPage() {
           e.preventDefault()
           closeDetailsPanel()
           const prev = lastFocusBeforeDetailsPanelRef.current
-          if (prev) {
-            setFocusedItemId(prev)
-          }
+          if (prev) setFocusedItemId(prev)
         }
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [
-    focusableItems,
-    focusedItemId,
-    setFocusedItemId,
-    openDetailsPanel,
-    closeDetailsPanel,
-    isDetailsPanelOpen,
-  ])
+  }, [focusableItems, focusedItemId, setFocusedItemId, openDetailsPanel, closeDetailsPanel, isDetailsPanelOpen])
 
   if (isLoading) {
     return (
@@ -114,10 +101,6 @@ export default function BoardPage() {
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
       </div>
     )
-  }
-
-  const handleStatusChange = async (itemId: string, newStatus: ItemStatus) => {
-    await updateItem.mutateAsync({ id: itemId, status: newStatus })
   }
 
   const handleDragStart = (e: React.DragEvent, itemId: string) => {
@@ -134,21 +117,29 @@ export default function BoardPage() {
     e.preventDefault()
     const itemId = e.dataTransfer.getData('itemId')
     if (itemId) {
-      await handleStatusChange(itemId, status)
+      await updateItem.mutateAsync({ id: itemId, status })
+    }
+  }
+
+  const handleArchiveDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    setArchiveHover(false)
+    const itemId = e.dataTransfer.getData('itemId')
+    if (itemId) {
+      await updateItem.mutateAsync({ id: itemId, status: 'archived' })
     }
   }
 
   return (
     <>
-      <div className="grid grid-cols-4 gap-4 h-[calc(100vh-8rem)]">
-        {STATUS_ORDER.map((status) => (
+      <div className="grid grid-cols-3 gap-4 h-[calc(100vh-8rem)]">
+        {ACTIVE_STATUSES.map((status) => (
           <div
             key={status}
             className="flex flex-col bg-gray-100 rounded-lg"
             onDragOver={handleDragOver}
             onDrop={(e) => handleDrop(e, status)}
           >
-            {/* Column Header */}
             <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200">
               <div className="flex items-center gap-2">
                 <span
@@ -162,12 +153,12 @@ export default function BoardPage() {
               </div>
             </div>
 
-            {/* Cards */}
             <div className="flex-1 overflow-y-auto p-2 space-y-2">
               {itemsByStatus[status].map((item) => (
                 <ItemCard
                   key={item.id}
                   item={item}
+                  project={projects?.find((p) => p.id === item.project_id)}
                   onDragStart={handleDragStart}
                   onClick={() => openDetailsPanel(item.id)}
                   childCount={items?.filter((i) => i.parent_id === item.id).length || 0}
@@ -185,6 +176,28 @@ export default function BoardPage() {
           </div>
         ))}
       </div>
+
+      {/* Archive drop zone */}
+      <div
+        onDragOver={(e) => {
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'move'
+          setArchiveHover(true)
+        }}
+        onDragLeave={() => setArchiveHover(false)}
+        onDrop={handleArchiveDrop}
+        className={`mt-3 flex items-center justify-center gap-2 py-2.5 rounded-lg border-2 border-dashed transition-colors ${
+          archiveHover
+            ? 'border-red-400 bg-red-50 text-red-600'
+            : 'border-gray-300 text-gray-400'
+        }`}
+      >
+        <Archive className="w-4 h-4" />
+        <span className="text-sm font-medium">
+          {archiveHover ? 'Drop to archive' : 'Drag here to archive'}
+        </span>
+      </div>
+
       <KeyboardShortcutsHelp groups={BOARD_SHORTCUTS} />
     </>
   )
@@ -192,6 +205,7 @@ export default function BoardPage() {
 
 function ItemCard({
   item,
+  project,
   onDragStart,
   onClick,
   childCount,
@@ -199,6 +213,7 @@ function ItemCard({
   onMouseEnter,
 }: {
   item: Item
+  project?: Project
   onDragStart: (e: React.DragEvent, itemId: string) => void
   onClick: () => void
   childCount: number
@@ -206,6 +221,7 @@ function ItemCard({
   onMouseEnter: () => void
 }) {
   const priorityConfig = PRIORITY_CONFIG[item.priority]
+  const projectColor = project ? PROJECT_COLORS[project.color] : null
 
   return (
     <div
@@ -217,12 +233,17 @@ function ItemCard({
         isFocused ? 'ring-2 ring-indigo-500 ring-offset-2' : ''
       }`}
     >
-      {/* Title */}
+      {project && projectColor && (
+        <span
+          className={`px-1.5 py-0.5 text-xs font-medium rounded truncate inline-block max-w-full mb-1.5 ${projectColor.bgColor} ${projectColor.textColor}`}
+        >
+          {project.title}
+        </span>
+      )}
+
       <h3 className="text-sm font-medium text-gray-900 mb-2">{item.title}</h3>
 
-      {/* Meta row */}
       <div className="flex items-center gap-2 flex-wrap">
-        {/* Priority */}
         {item.priority !== 'none' && (
           <span
             className={`px-1.5 py-0.5 text-xs font-medium rounded ${priorityConfig.bgColor} ${priorityConfig.color}`}
@@ -231,7 +252,6 @@ function ItemCard({
           </span>
         )}
 
-        {/* Due date */}
         {item.due_date && (
           <span className="flex items-center gap-1 text-xs text-gray-500">
             <Calendar className="w-3 h-3" />
@@ -242,13 +262,14 @@ function ItemCard({
           </span>
         )}
 
-        {/* Child count */}
         {childCount > 0 && (
           <span className="flex items-center gap-0.5 text-xs text-gray-500">
             <ChevronRight className="w-3 h-3" />
             {childCount}
           </span>
         )}
+
+        <TimerButton itemId={item.id} size="sm" />
       </div>
     </div>
   )

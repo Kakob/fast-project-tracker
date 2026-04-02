@@ -6,7 +6,10 @@ import { useProjects } from '@/lib/hooks/use-projects'
 import { useUIStore } from '@/lib/stores/ui-store'
 import { STATUS_CONFIG, PRIORITY_CONFIG, STATUS_ORDER, PROJECT_COLORS } from '@/types'
 import type { ItemStatus, ItemPriority } from '@/types'
-import { X, Trash2, Calendar, ChevronDown, FolderOpen } from 'lucide-react'
+import { useTimeEntriesByItem, useDeleteTimeEntry } from '@/lib/hooks/use-time-entries'
+import { TimerButton } from '@/components/timer/timer-button'
+import { formatDuration, formatDurationShort } from '@/lib/utils'
+import { X, Trash2, Calendar, ChevronDown, FolderOpen, Clock } from 'lucide-react'
 
 export function ItemDetailsPanel() {
   const { selectedItemId, isDetailsPanelOpen, closeDetailsPanel } = useUIStore()
@@ -15,6 +18,10 @@ export function ItemDetailsPanel() {
   const { data: projects } = useProjects()
   const updateItem = useUpdateItem()
   const deleteItem = useDeleteItem()
+  const { data: timeEntries } = useTimeEntriesByItem(selectedItemId)
+  const deleteTimeEntry = useDeleteTimeEntry()
+  const timerElapsedSeconds = useUIStore((s) => s.timerElapsedSeconds)
+  const activeTimerItemId = useUIStore((s) => s.activeTimerItemId)
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -240,6 +247,74 @@ export function ItemDetailsPanel() {
                 placeholder="Add a description..."
               />
             </div>
+
+            {/* Time Tracking */}
+            {item && (
+              <div>
+                <label className="block text-sm font-medium text-gray-500 mb-2">
+                  Time Tracking
+                </label>
+                <div className="space-y-3">
+                  {/* Timer button + total time */}
+                  <div className="flex items-center justify-between">
+                    <TimerButton itemId={item.id} size="md" />
+                    <div className="flex items-center gap-1.5 text-sm text-gray-500">
+                      <Clock className="w-4 h-4" />
+                      <span>
+                        Total:{' '}
+                        {formatDurationShort(
+                          (timeEntries?.reduce((sum, e) => sum + (e.duration_seconds || 0), 0) || 0) +
+                          (activeTimerItemId === item.id ? timerElapsedSeconds : 0)
+                        )}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Recent time entries */}
+                  {timeEntries && timeEntries.length > 0 && (
+                    <div className="space-y-1.5">
+                      {timeEntries.slice(0, 10).map((entry) => (
+                        <div
+                          key={entry.id}
+                          className="flex items-center justify-between px-2 py-1.5 bg-gray-50 rounded text-xs group/entry"
+                        >
+                          <div className="flex items-center gap-2 text-gray-600">
+                            <span>
+                              {new Date(entry.started_at).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                              })}
+                            </span>
+                            <span className="text-gray-400">
+                              {new Date(entry.started_at).toLocaleTimeString('en-US', {
+                                hour: 'numeric',
+                                minute: '2-digit',
+                              })}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-gray-700">
+                              {entry.duration_seconds != null
+                                ? formatDuration(entry.duration_seconds)
+                                : formatDuration(timerElapsedSeconds)}
+                            </span>
+                            {entry.ended_at && (
+                              <button
+                                onClick={() => deleteTimeEntry.mutate(entry.id)}
+                                className="opacity-0 group-hover/entry:opacity-100 p-0.5 text-gray-400 hover:text-red-500 transition-opacity"
+                                title="Delete entry"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Child items */}
             {childItems.length > 0 && (
