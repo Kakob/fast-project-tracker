@@ -3,7 +3,7 @@
 export type ItemStatus = 'todo' | 'in_progress' | 'done' | 'archived'
 export type ItemPriority = 'none' | 'low' | 'medium' | 'high' | 'urgent'
 export type ProjectColor = 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'indigo' | 'purple' | 'pink' | 'gray'
-export type ViewType = 'board' | 'list' | 'calendar' | 'projects' | 'archive'
+export type ViewType = 'board' | 'list' | 'calendar' | 'projects' | 'archive' | 'focus'
 
 export interface Item {
   id: string
@@ -17,6 +17,9 @@ export interface Item {
   due_date: string | null // ISO date string (YYYY-MM-DD)
   start_date: string | null
   completed_at: string | null
+  intention: string | null
+  cumulative_time_ms: number
+  session_count: number
   position: number
   created_at: string
   updated_at: string
@@ -33,6 +36,10 @@ export interface Profile {
   email: string | null
   display_name: string | null
   photo_url: string | null
+  default_warning_buffer_sec: number
+  default_break_duration_sec: number
+  preferred_time_increments: number[]
+  tier: UserTier
   created_at: string
   updated_at: string
 }
@@ -148,3 +155,210 @@ export const PROJECT_COLORS: Record<ProjectColor, { label: string; bgColor: stri
 
 // Kanban column order
 export const STATUS_ORDER: ItemStatus[] = ['todo', 'in_progress', 'done', 'archived']
+
+// =============================================================================
+// Focus Session Types
+// =============================================================================
+
+export type FocusSessionStatus = 'setup' | 'active' | 'paused' | 'completed' | 'abandoned'
+export type SessionEndReason = 'completed' | 'abandoned' | 'free_tier_cap'
+export type SessionTaskStatus = 'pending' | 'active' | 'completed' | 'paused_incomplete' | 'skipped'
+export type ReminderSourceType = 'global' | 'task' | 'session'
+export type ReminderTriggerType = 'interval' | 'moment' | 'manual'
+export type ReminderDelivery = 'visual' | 'audio' | 'both'
+export type LogInputType = 'numeric_scale' | 'text' | 'multiple_choice'
+export type LogEntrySource = 'manual' | 'reminder_prompt' | 'session_end'
+export type BreakType = 'between_tasks' | 'manual'
+export type UserTier = 'free' | 'premium'
+
+export interface FocusSession {
+  id: string
+  user_id: string
+  status: FocusSessionStatus
+  started_at: string | null
+  paused_at: string | null
+  completed_at: string | null
+  total_pause_ms: number
+  total_break_ms: number
+  total_active_ms: number
+  template_id: string | null
+  ended_by: SessionEndReason | null
+  created_at: string
+  updated_at: string
+}
+
+export interface SessionTask {
+  id: string
+  session_id: string
+  task_id: string
+  position: number
+  allocated_time_ms: number
+  actual_time_ms: number
+  warning_buffer_sec: number
+  status: SessionTaskStatus
+  started_at: string | null
+  completed_at: string | null
+  extensions_ms: number
+  extension_count: number
+}
+
+export interface SessionTemplate {
+  id: string
+  user_id: string
+  name: string
+  description: string | null
+  template_data: {
+    slots: Array<{
+      task_id: string | null
+      allocated_time_ms: number
+      warning_buffer_sec: number
+      position: number
+    }>
+  }
+  created_at: string
+  updated_at: string
+}
+
+export interface Reminder {
+  id: string
+  user_id: string
+  content: string
+  source_type: ReminderSourceType
+  source_id: string | null
+  delivery: ReminderDelivery
+  audio_url: string | null
+  trigger_type: ReminderTriggerType
+  trigger_interval_ms: number | null
+  trigger_moment: string | null
+  trigger_timestamp_ms: number | null
+  triggers_log_type_id: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface LogType {
+  id: string
+  user_id: string
+  name: string
+  input_type: LogInputType
+  config: Record<string, unknown>
+  is_default: boolean
+  is_custom: boolean
+  position: number
+  created_at: string
+  updated_at: string
+}
+
+export interface LogEntry {
+  id: string
+  user_id: string
+  session_id: string
+  session_task_id: string | null
+  log_type_id: string
+  value_numeric: number | null
+  value_text: string | null
+  value_choice: string | null
+  source: LogEntrySource
+  created_at: string
+}
+
+export interface SessionReflection {
+  id: string
+  session_id: string
+  user_id: string
+  how_it_went: number | null
+  wins: string | null
+  friction: string | null
+  notes: string | null
+  created_at: string
+}
+
+export interface Break {
+  id: string
+  session_id: string
+  user_id: string
+  started_at: string
+  ended_at: string | null
+  planned_duration_sec: number | null
+  break_type: BreakType
+  created_at: string
+}
+
+// Focus session mutation inputs
+export interface CreateFocusSessionInput {
+  template_id?: string | null
+}
+
+export interface CreateSessionTaskInput {
+  session_id: string
+  task_id: string
+  position: number
+  allocated_time_ms: number
+  warning_buffer_sec?: number
+}
+
+export interface UpdateSessionTaskInput {
+  position?: number
+  allocated_time_ms?: number
+  actual_time_ms?: number
+  warning_buffer_sec?: number
+  status?: SessionTaskStatus
+  started_at?: string | null
+  completed_at?: string | null
+  extensions_ms?: number
+  extension_count?: number
+}
+
+export interface CreateReminderInput {
+  content: string
+  source_type: ReminderSourceType
+  source_id?: string | null
+  delivery?: ReminderDelivery
+  trigger_type: ReminderTriggerType
+  trigger_interval_ms?: number | null
+  trigger_moment?: string | null
+  trigger_timestamp_ms?: number | null
+  triggers_log_type_id?: string | null
+}
+
+export interface UpdateReminderInput {
+  content?: string
+  delivery?: ReminderDelivery
+  trigger_type?: ReminderTriggerType
+  trigger_interval_ms?: number | null
+  trigger_moment?: string | null
+  trigger_timestamp_ms?: number | null
+  triggers_log_type_id?: string | null
+  is_active?: boolean
+}
+
+export interface CreateLogEntryInput {
+  session_id: string
+  session_task_id?: string | null
+  log_type_id: string
+  value_numeric?: number | null
+  value_text?: string | null
+  value_choice?: string | null
+  source: LogEntrySource
+}
+
+export interface CreateSessionReflectionInput {
+  session_id: string
+  how_it_went?: number | null
+  wins?: string | null
+  friction?: string | null
+  notes?: string | null
+}
+
+export interface CreateBreakInput {
+  session_id: string
+  planned_duration_sec?: number | null
+  break_type: BreakType
+}
+
+export interface CreateSessionTemplateInput {
+  name: string
+  description?: string | null
+  template_data: SessionTemplate['template_data']
+}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter, usePathname } from 'next/navigation'
-import { LogOut, LayoutGrid, List, Calendar, Plus, FolderOpen, Keyboard, Archive } from 'lucide-react'
+import { LogOut, LayoutGrid, List, Calendar, Plus, FolderOpen, Keyboard, Archive, Target } from 'lucide-react'
 import { supabase } from '@/lib/supabase-client'
 import { useUIStore } from '@/lib/stores/ui-store'
 import { useCreateItem } from '@/lib/hooks/use-items'
@@ -10,6 +10,10 @@ import { ItemDetailsPanel } from '@/components/item/item-details-panel'
 import { TimerProvider } from '@/components/timer/timer-provider'
 import { GlobalTimerIndicator } from '@/components/timer/global-timer-indicator'
 import { TimeSummaryButton } from '@/components/timer/time-summary'
+import { FocusSessionProvider } from '@/components/focus/focus-session-provider'
+import { FocusSessionIndicator } from '@/components/focus/focus-session-indicator'
+import { SessionSetupModal } from '@/components/focus/session-setup-modal'
+import { useFocusSessionStore } from '@/lib/stores/focus-session-store'
 import { useState, useRef, useEffect } from 'react'
 import type { ViewType } from '@/types'
 
@@ -19,12 +23,14 @@ const VIEW_TABS: { view: ViewType; path: string; label: string; icon: typeof Lay
   { view: 'calendar', path: '/calendar', label: 'Calendar', icon: Calendar },
   { view: 'projects', path: '/projects', label: 'Projects', icon: FolderOpen },
   { view: 'archive', path: '/archive', label: 'Archive', icon: Archive },
+  { view: 'focus', path: '/focus', label: 'Focus', icon: Target },
 ]
 
 export function TrackerLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
   const { setCurrentView, isDetailsPanelOpen, toggleShortcutsHelp, focusedItemId, selectedItemId, activeTimerItemId } = useUIStore()
+  const focusSessionStore = useFocusSessionStore()
   const createItem = useCreateItem()
   const startTimer = useStartTimer()
   const stopTimer = useStopTimer()
@@ -42,6 +48,8 @@ export function TrackerLayout({ children }: { children: React.ReactNode }) {
     ? 'projects'
     : pathname.includes('/archive')
     ? 'archive'
+    : pathname.includes('/focus')
+    ? 'focus'
     : 'board'
 
   useEffect(() => {
@@ -79,14 +87,14 @@ export function TrackerLayout({ children }: { children: React.ReactNode }) {
         e.preventDefault()
         toggleShortcutsHelp()
       }
-      // Press 1-4 to switch views
-      if (!isInput && ['1', '2', '3', '4', '5'].includes(e.key)) {
+      // Press 1-6 to switch views
+      if (!isInput && ['1', '2', '3', '4', '5', '6'].includes(e.key)) {
         e.preventDefault()
         const tab = VIEW_TABS[parseInt(e.key) - 1]
         if (tab) router.push(tab.path)
       }
-      // Press 't' to toggle timer on focused/selected item
-      if (e.key === 't' && !isInput) {
+      // Press 't' to toggle timer on focused/selected item (disabled during focus session)
+      if (e.key === 't' && !isInput && !focusSessionStore.activeSessionId) {
         e.preventDefault()
         const targetItemId = focusedItemId || selectedItemId
         if (targetItemId) {
@@ -101,7 +109,7 @@ export function TrackerLayout({ children }: { children: React.ReactNode }) {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [toggleShortcutsHelp, router, focusedItemId, selectedItemId, activeTimerItemId, startTimer, stopTimer])
+  }, [toggleShortcutsHelp, router, focusedItemId, selectedItemId, activeTimerItemId, startTimer, stopTimer, focusSessionStore.activeSessionId])
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -135,8 +143,9 @@ export function TrackerLayout({ children }: { children: React.ReactNode }) {
               ))}
             </nav>
 
-            {/* Quick Add + Timer + Sign Out */}
+            {/* Quick Add + Timer + Focus + Sign Out */}
             <div className="flex items-center gap-3">
+              <FocusSessionIndicator />
               <GlobalTimerIndicator />
               <form onSubmit={handleQuickAdd} className="relative">
                 <input
@@ -179,6 +188,7 @@ export function TrackerLayout({ children }: { children: React.ReactNode }) {
       </header>
 
       <TimerProvider />
+      <FocusSessionProvider />
 
       {/* Main Content */}
       <main className="flex-1">
@@ -189,6 +199,9 @@ export function TrackerLayout({ children }: { children: React.ReactNode }) {
 
       {/* Details Panel */}
       {isDetailsPanelOpen && <ItemDetailsPanel />}
+
+      {/* Focus Session Setup Modal */}
+      {focusSessionStore.showSetupModal && <SessionSetupModal />}
     </div>
   )
 }

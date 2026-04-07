@@ -11,10 +11,23 @@ export interface ShortcutGroup {
 const GLOBAL_SHORTCUTS: ShortcutGroup = {
   title: 'Global',
   shortcuts: [
-    { key: '1-4', description: 'Switch view (Board, List, Calendar, Projects)' },
+    { key: '1-6', description: 'Switch view (Board, List, Calendar, Projects, Archive, Focus)' },
     { key: 'n', description: 'Focus quick add input' },
     { key: '?', description: 'Toggle keyboard shortcuts' },
     { key: 't', description: 'Start/stop timer on focused item' },
+  ],
+}
+
+const FOCUS_SESSION_SHORTCUTS: ShortcutGroup = {
+  title: 'Focus Session',
+  shortcuts: [
+    { key: 'Space', description: 'Pause / resume session' },
+    { key: 'd', description: 'Mark current task done, advance' },
+    { key: 'k', description: 'Skip current task, advance' },
+    { key: 'b', description: 'Take a break' },
+    { key: 'l', description: 'Open log prompt' },
+    { key: '+ / =', description: 'Extend current task time' },
+    { key: 'Esc', description: 'End session (with confirmation)' },
   ],
 }
 
@@ -23,7 +36,7 @@ export function KeyboardShortcutsHelp({ groups }: { groups: ShortcutGroup[] }) {
 
   if (!isShortcutsHelpOpen) return null
 
-  const allGroups = [...groups, GLOBAL_SHORTCUTS]
+  const allGroups = [...groups, GLOBAL_SHORTCUTS, FOCUS_SESSION_SHORTCUTS]
 
   return (
     <>
