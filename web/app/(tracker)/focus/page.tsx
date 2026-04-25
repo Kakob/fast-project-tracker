@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { Target, Plus } from 'lucide-react'
 import { useActiveFocusSession } from '@/lib/hooks/use-focus-sessions'
 import { useFocusSessionStore } from '@/lib/stores/focus-session-store'
@@ -9,28 +8,34 @@ import { ActiveSessionView } from '@/components/focus/active-session-view'
 import { SessionSummary } from '@/components/focus/session-summary'
 
 export default function FocusPage() {
-  const router = useRouter()
   const { data: activeSession, isLoading } = useActiveFocusSession()
 
   const activeSessionId = useFocusSessionStore((s) => s.activeSessionId)
   const sessionStatus = useFocusSessionStore((s) => s.sessionStatus)
   const initSession = useFocusSessionStore((s) => s.initSession)
   const setSessionStatus = useFocusSessionStore((s) => s.setSessionStatus)
-  const setSessionElapsedMs = useFocusSessionStore((s) => s.setSessionElapsedMs)
-  const setTotalPauseMs = useFocusSessionStore((s) => s.setTotalPauseMs)
-  const setTotalBreakMs = useFocusSessionStore((s) => s.setTotalBreakMs)
   const setShowSetupModal = useFocusSessionStore((s) => s.setShowSetupModal)
+  const clearSession = useFocusSessionStore((s) => s.clearSession)
 
-  // Sync session from DB if we have one but store is empty (e.g., page refresh)
+  // Sync session from DB on page refresh (store is empty but DB has an active session)
   useEffect(() => {
     if (activeSession && !activeSessionId) {
-      initSession(activeSession.id, 0)
-      setSessionStatus(activeSession.status)
-      setSessionElapsedMs(activeSession.total_active_ms)
-      setTotalPauseMs(activeSession.total_pause_ms)
-      setTotalBreakMs(activeSession.total_break_ms)
+      if (activeSession.status === 'active' || activeSession.status === 'paused') {
+        initSession(activeSession.id, 0)
+        setSessionStatus(activeSession.status)
+      }
+      // If DB session is 'setup', it was never started -- ignore it
     }
-  }, [activeSession, activeSessionId, initSession, setSessionStatus, setSessionElapsedMs, setTotalPauseMs, setTotalBreakMs])
+  }, [activeSession, activeSessionId, initSession, setSessionStatus])
+
+  // If the store says completed/abandoned but DB still shows active,
+  // clear the store so we can start fresh after viewing the summary
+  useEffect(() => {
+    if (!activeSession && activeSessionId && sessionStatus !== 'completed' && sessionStatus !== 'abandoned') {
+      // Session was cleaned up from DB but store still has it -- clear store
+      clearSession()
+    }
+  }, [activeSession, activeSessionId, sessionStatus, clearSession])
 
   if (isLoading) {
     return (

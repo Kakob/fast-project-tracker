@@ -10,6 +10,7 @@ interface FocusSessionState {
   sessionElapsedMs: number
   currentTaskElapsedMs: number
   currentTaskIndex: number
+  taskStartSessionElapsedMs: number // sessionElapsedMs when current task started
   totalAllocatedMs: number
 
   // Transition state (3-5 sec animation between tasks)
@@ -46,7 +47,7 @@ interface FocusSessionState {
   initSession: (sessionId: string, totalAllocatedMs: number) => void
   clearSession: () => void
   setSessionStatus: (status: FocusSessionStatus) => void
-  setCurrentTaskIndex: (index: number) => void
+  setCurrentTaskIndex: (index: number, sessionElapsedAtStart?: number) => void
   setCurrentTaskElapsedMs: (ms: number) => void
   setSessionElapsedMs: (ms: number) => void
   setTotalAllocatedMs: (ms: number) => void
@@ -90,6 +91,7 @@ export const useFocusSessionStore = create<FocusSessionState>((set) => ({
   sessionElapsedMs: 0,
   currentTaskElapsedMs: 0,
   currentTaskIndex: 0,
+  taskStartSessionElapsedMs: 0,
   totalAllocatedMs: 0,
 
   // Transition
@@ -130,6 +132,7 @@ export const useFocusSessionStore = create<FocusSessionState>((set) => ({
       sessionElapsedMs: 0,
       currentTaskElapsedMs: 0,
       currentTaskIndex: 0,
+      taskStartSessionElapsedMs: 0,
       totalAllocatedMs,
       isInTransition: false,
       isWarningActive: false,
@@ -155,6 +158,7 @@ export const useFocusSessionStore = create<FocusSessionState>((set) => ({
       sessionElapsedMs: 0,
       currentTaskElapsedMs: 0,
       currentTaskIndex: 0,
+      taskStartSessionElapsedMs: 0,
       totalAllocatedMs: 0,
       isInTransition: false,
       transitionFromTaskId: null,
@@ -177,7 +181,12 @@ export const useFocusSessionStore = create<FocusSessionState>((set) => ({
     }),
 
   setSessionStatus: (status) => set({ sessionStatus: status }),
-  setCurrentTaskIndex: (index) => set({ currentTaskIndex: index, currentTaskElapsedMs: 0, isWarningActive: false }),
+  setCurrentTaskIndex: (index, sessionElapsedAtStart) => set((state) => ({
+    currentTaskIndex: index,
+    currentTaskElapsedMs: 0,
+    taskStartSessionElapsedMs: sessionElapsedAtStart ?? state.sessionElapsedMs,
+    isWarningActive: false,
+  })),
   setCurrentTaskElapsedMs: (ms) => set({ currentTaskElapsedMs: ms }),
   setSessionElapsedMs: (ms) => set({ sessionElapsedMs: ms }),
   setTotalAllocatedMs: (ms) => set({ totalAllocatedMs: ms }),

@@ -118,7 +118,7 @@ export function ActiveSessionView({ sessionId }: ActiveSessionViewProps) {
     setTimeout(() => {
       const st = useFocusSessionStore.getState()
       st.exitTransition()
-      st.setCurrentTaskIndex(nextIndex)
+      st.setCurrentTaskIndex(nextIndex, st.sessionElapsedMs)
       updateSessionTask.mutate({
         id: nextTask.id,
         sessionId,
@@ -153,7 +153,7 @@ export function ActiveSessionView({ sessionId }: ActiveSessionViewProps) {
     setTimeout(() => {
       const st = useFocusSessionStore.getState()
       st.exitTransition()
-      st.setCurrentTaskIndex(nextIndex)
+      st.setCurrentTaskIndex(nextIndex, st.sessionElapsedMs)
       updateSessionTask.mutate({
         id: nextTask.id,
         sessionId,
