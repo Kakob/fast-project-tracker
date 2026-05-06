@@ -3,7 +3,7 @@ import './globals.css'
 import { Providers } from './providers'
 
 export const metadata: Metadata = {
-  title: 'Project Tracker',
+  title: 'Floviate',
   description: 'A fast, minimal-click project tracker',
 }
 
