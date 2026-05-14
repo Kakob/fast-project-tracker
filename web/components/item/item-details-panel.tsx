@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useItem, useUpdateItem, useDeleteItem, useItems } from '@/lib/hooks/use-items'
 import { useProjects } from '@/lib/hooks/use-projects'
 import { useUIStore } from '@/lib/stores/ui-store'
@@ -13,6 +13,8 @@ import { X, Trash2, Calendar, ChevronDown, FolderOpen, Clock } from 'lucide-reac
 
 export function ItemDetailsPanel() {
   const { selectedItemId, isDetailsPanelOpen, closeDetailsPanel } = useUIStore()
+  const autoClearTitleItemId = useUIStore((s) => s.autoClearTitleItemId)
+  const setAutoClearTitleItemId = useUIStore((s) => s.setAutoClearTitleItemId)
   const { data: item, isLoading } = useItem(selectedItemId)
   const { data: allItems } = useItems()
   const { data: projects } = useProjects()
@@ -25,6 +27,8 @@ export function ItemDetailsPanel() {
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const titleInputRef = useRef<HTMLInputElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
 
   // Sync local state with item data
   useEffect(() => {
@@ -33,6 +37,13 @@ export function ItemDetailsPanel() {
       setDescription(item.description || '')
     }
   }, [item])
+
+  // Auto-focus the title input when opened with a freshly-created task
+  useEffect(() => {
+    if (item && autoClearTitleItemId === item.id) {
+      titleInputRef.current?.focus()
+    }
+  }, [item, autoClearTitleItemId])
 
   // Close panel on Escape
   useEffect(() => {
@@ -45,9 +56,56 @@ export function ItemDetailsPanel() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isDetailsPanelOpen, closeDetailsPanel])
 
+  // Trap Tab focus inside the panel while it's open
+  useEffect(() => {
+    if (!isDetailsPanelOpen) return
+    const handleTab = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return
+      const panel = panelRef.current
+      if (!panel) return
+      const focusables = panel.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )
+      if (focusables.length === 0) return
+      const first = focusables[0]
+      const last = focusables[focusables.length - 1]
+      const active = document.activeElement as HTMLElement | null
+
+      if (!panel.contains(active)) {
+        e.preventDefault()
+        first.focus()
+        return
+      }
+      if (e.shiftKey && active === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+    window.addEventListener('keydown', handleTab)
+    return () => window.removeEventListener('keydown', handleTab)
+  }, [isDetailsPanelOpen])
+
   const handleTitleBlur = async () => {
     if (item && title !== item.title && title.trim()) {
       await updateItem.mutateAsync({ id: item.id, title: title.trim() })
+    }
+  }
+
+  const handleTitleFocus = () => {
+    if (item && autoClearTitleItemId === item.id) {
+      setTitle('')
+      setAutoClearTitleItemId(null)
+    }
+  }
+
+  const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleTitleBlur()
+      closeDetailsPanel()
     }
   }
 
@@ -74,6 +132,20 @@ export function ItemDetailsPanel() {
       const value = e.target.value || null
       await updateItem.mutateAsync({ id: item.id, due_date: value })
     }
+  }
+
+  const handleScheduledStartChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!item) return
+    const value = e.target.value
+    // datetime-local gives "YYYY-MM-DDTHH:mm" with no timezone — interpret as local
+    const iso = value ? new Date(value).toISOString() : null
+    await updateItem.mutateAsync({ id: item.id, scheduled_start: iso })
+  }
+
+  const handleDurationChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!item) return
+    const minutes = Math.max(5, Math.round(Number(e.target.value) / 5) * 5)
+    await updateItem.mutateAsync({ id: item.id, duration_minutes: minutes })
   }
 
   const handleProjectChange = async (projectId: string | null) => {
@@ -107,7 +179,10 @@ export function ItemDetailsPanel() {
       />
 
       {/* Panel */}
-      <div className="fixed right-0 top-0 h-full w-[480px] bg-white shadow-xl z-50 flex flex-col">
+      <div
+        ref={panelRef}
+        className="fixed right-0 top-0 h-full w-[480px] bg-white shadow-xl z-50 flex flex-col"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">Item Details</h2>
@@ -138,10 +213,13 @@ export function ItemDetailsPanel() {
             {/* Title */}
             <div>
               <input
+                ref={titleInputRef}
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
+                onFocus={handleTitleFocus}
                 onBlur={handleTitleBlur}
+                onKeyDown={handleTitleKeyDown}
                 className="w-full text-xl font-semibold text-gray-900 border-0 p-0 focus:ring-0 placeholder-gray-400"
                 placeholder="Item title"
               />
@@ -203,6 +281,35 @@ export function ItemDetailsPanel() {
                   className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"
                 />
                 <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Scheduled time (week view) */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-500 mb-2">
+                  Scheduled
+                </label>
+                <input
+                  type="datetime-local"
+                  step={300}
+                  value={toLocalDatetimeInput(item.scheduled_start)}
+                  onChange={handleScheduledStartChange}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-500 mb-2">
+                  Duration (min)
+                </label>
+                <input
+                  type="number"
+                  min={5}
+                  step={5}
+                  value={item.duration_minutes ?? 30}
+                  onChange={handleDurationChange}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"
+                />
               </div>
             </div>
 
@@ -369,4 +476,11 @@ export function ItemDetailsPanel() {
       </div>
     </>
   )
+}
+
+function toLocalDatetimeInput(iso: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }

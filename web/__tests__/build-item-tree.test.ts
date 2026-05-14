@@ -23,6 +23,8 @@ function makeItem(overrides: Partial<Item> & { id: string }): Item {
     due_date: null,
     start_date: null,
     completed_at: null,
+    scheduled_start: null,
+    duration_minutes: 30,
     intention: null,
     cumulative_time_ms: 0,
     session_count: 0,

@@ -76,6 +76,11 @@ CREATE TABLE items (
     start_date DATE,
     completed_at TIMESTAMPTZ,
 
+    -- Calendar scheduling (week view)
+    scheduled_start TIMESTAMPTZ,
+    duration_minutes INT NOT NULL DEFAULT 30
+        CHECK (duration_minutes > 0),
+
     -- Focus session fields
     intention TEXT,
     cumulative_time_ms BIGINT NOT NULL DEFAULT 0,
@@ -272,6 +277,8 @@ CREATE INDEX idx_projects_user_position ON projects(user_id, position);
 CREATE INDEX idx_items_user_parent ON items(user_id, parent_id);
 CREATE INDEX idx_items_user_status ON items(user_id, status);
 CREATE INDEX idx_items_user_due ON items(user_id, due_date);
+CREATE INDEX idx_items_user_scheduled ON items(user_id, scheduled_start)
+    WHERE scheduled_start IS NOT NULL;
 CREATE INDEX idx_items_parent_position ON items(parent_id, position);
 CREATE INDEX idx_items_user_position ON items(user_id, position) WHERE parent_id IS NULL;
 CREATE INDEX idx_items_project ON items(project_id);

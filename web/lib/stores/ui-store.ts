@@ -29,6 +29,11 @@ interface UIState {
   editingItemId: string | null
   setEditingItemId: (id: string | null) => void
 
+  // Item whose title placeholder should be cleared on first focus
+  // (used when creating a fresh task from the week view)
+  autoClearTitleItemId: string | null
+  setAutoClearTitleItemId: (id: string | null) => void
+
   // Expanded projects in projects view
   expandedProjectIds: Set<string>
   toggleProjectExpanded: (projectId: string) => void
@@ -102,6 +107,10 @@ export const useUIStore = create<UIState>((set) => ({
   // Editing state
   editingItemId: null,
   setEditingItemId: (id) => set({ editingItemId: id }),
+
+  // Auto-clear title (one-shot)
+  autoClearTitleItemId: null,
+  setAutoClearTitleItemId: (id) => set({ autoClearTitleItemId: id }),
 
   // Expanded projects
   expandedProjectIds: new Set<string>(),

@@ -68,6 +68,8 @@ export function useCreateItem() {
           priority: input.priority || 'none',
           due_date: input.due_date || null,
           start_date: input.start_date || null,
+          scheduled_start: input.scheduled_start ?? null,
+          duration_minutes: input.duration_minutes ?? 30,
         })
         .select()
         .single()
@@ -93,6 +95,8 @@ export function useCreateItem() {
         due_date: newItem.due_date || null,
         start_date: newItem.start_date || null,
         completed_at: null,
+        scheduled_start: newItem.scheduled_start ?? null,
+        duration_minutes: newItem.duration_minutes ?? 30,
         intention: null,
         cumulative_time_ms: 0,
         session_count: 0,

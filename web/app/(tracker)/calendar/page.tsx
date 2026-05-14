@@ -8,17 +8,21 @@ import { useUIStore } from '@/lib/stores/ui-store'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { KeyboardShortcutsHelp } from '@/components/keyboard-shortcuts-help'
 import type { ShortcutGroup } from '@/components/keyboard-shortcuts-help'
+import { WeekView } from '@/components/views/week-view'
+
+type CalendarMode = 'month' | 'week'
 
 const CALENDAR_SHORTCUTS: ShortcutGroup[] = [
   {
     title: 'Calendar',
     shortcuts: [
-      { key: '\u2191 / \u2193', description: 'Navigate between items' },
+      { key: '\u2191 / \u2193', description: 'Navigate between items (month view)' },
       { key: '\u2192 / Enter', description: 'Open details panel' },
       { key: '\u2190', description: 'Close details panel' },
-      { key: '[', description: 'Previous month' },
-      { key: ']', description: 'Next month' },
+      { key: '[', description: 'Previous month / week' },
+      { key: ']', description: 'Next month / week' },
       { key: 't', description: 'Go to today' },
+      { key: 'w', description: 'Toggle week / month view' },
     ],
   },
 ]
@@ -35,6 +39,7 @@ export default function CalendarPage() {
   } = useUIStore()
 
   const [currentDate, setCurrentDate] = useState(new Date())
+  const [mode, setMode] = useState<CalendarMode>('week')
   const lastFocusBeforeDetailsPanelRef = useRef<string | null>(null)
 
   const { year, month, days, firstDayOfWeek } = useMemo(() => {
@@ -100,9 +105,24 @@ export default function CalendarPage() {
     setCurrentDate(new Date(year, month + 1, 1))
   }
 
+  const goToPreviousWeek = () => {
+    const d = new Date(currentDate)
+    d.setDate(d.getDate() - 7)
+    setCurrentDate(d)
+  }
+
+  const goToNextWeek = () => {
+    const d = new Date(currentDate)
+    d.setDate(d.getDate() + 7)
+    setCurrentDate(d)
+  }
+
   const goToToday = () => {
     setCurrentDate(new Date())
   }
+
+  const goPrev = () => (mode === 'month' ? goToPreviousMonth() : goToPreviousWeek())
+  const goNext = () => (mode === 'month' ? goToNextMonth() : goToNextWeek())
 
   // Keyboard navigation
   useEffect(() => {
@@ -116,56 +136,67 @@ export default function CalendarPage() {
         return
       }
 
-      switch (e.key) {
-        case 'ArrowUp': {
-          e.preventDefault()
-          if (focusableItems.length === 0) return
-          const currentIndex = focusableItems.findIndex((item) => item.id === focusedItemId)
-          const prevIndex = currentIndex <= 0 ? focusableItems.length - 1 : currentIndex - 1
-          setFocusedItemId(focusableItems[prevIndex].id)
-          break
-        }
-        case 'ArrowDown': {
-          e.preventDefault()
-          if (focusableItems.length === 0) return
-          const currentIndex = focusableItems.findIndex((item) => item.id === focusedItemId)
-          const nextIndex = currentIndex >= focusableItems.length - 1 ? 0 : currentIndex + 1
-          setFocusedItemId(focusableItems[nextIndex].id)
-          break
-        }
-        case 'Enter':
-        case 'ArrowRight': {
-          if (focusedItemId) {
+      // Item-list keyboard nav only applies in month mode
+      if (mode === 'month') {
+        switch (e.key) {
+          case 'ArrowUp': {
             e.preventDefault()
-            lastFocusBeforeDetailsPanelRef.current = focusedItemId
-            openDetailsPanel(focusedItemId)
+            if (focusableItems.length === 0) return
+            const currentIndex = focusableItems.findIndex((item) => item.id === focusedItemId)
+            const prevIndex = currentIndex <= 0 ? focusableItems.length - 1 : currentIndex - 1
+            setFocusedItemId(focusableItems[prevIndex].id)
+            return
           }
-          break
-        }
-        case 'ArrowLeft': {
-          if (isDetailsPanelOpen) {
+          case 'ArrowDown': {
             e.preventDefault()
-            closeDetailsPanel()
-            if (lastFocusBeforeDetailsPanelRef.current) {
-              setFocusedItemId(lastFocusBeforeDetailsPanelRef.current)
-              lastFocusBeforeDetailsPanelRef.current = null
+            if (focusableItems.length === 0) return
+            const currentIndex = focusableItems.findIndex((item) => item.id === focusedItemId)
+            const nextIndex = currentIndex >= focusableItems.length - 1 ? 0 : currentIndex + 1
+            setFocusedItemId(focusableItems[nextIndex].id)
+            return
+          }
+          case 'Enter':
+          case 'ArrowRight': {
+            if (focusedItemId) {
+              e.preventDefault()
+              lastFocusBeforeDetailsPanelRef.current = focusedItemId
+              openDetailsPanel(focusedItemId)
             }
+            return
           }
-          break
+          case 'ArrowLeft': {
+            if (isDetailsPanelOpen) {
+              e.preventDefault()
+              closeDetailsPanel()
+              if (lastFocusBeforeDetailsPanelRef.current) {
+                setFocusedItemId(lastFocusBeforeDetailsPanelRef.current)
+                lastFocusBeforeDetailsPanelRef.current = null
+              }
+            }
+            return
+          }
         }
+      }
+
+      switch (e.key) {
         case '[': {
           e.preventDefault()
-          goToPreviousMonth()
+          mode === 'month' ? goToPreviousMonth() : goToPreviousWeek()
           break
         }
         case ']': {
           e.preventDefault()
-          goToNextMonth()
+          mode === 'month' ? goToNextMonth() : goToNextWeek()
           break
         }
         case 't': {
           e.preventDefault()
           goToToday()
+          break
+        }
+        case 'w': {
+          e.preventDefault()
+          setMode((m) => (m === 'month' ? 'week' : 'month'))
           break
         }
       }
@@ -174,12 +205,14 @@ export default function CalendarPage() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [
+    mode,
     focusableItems,
     focusedItemId,
     setFocusedItemId,
     openDetailsPanel,
     closeDetailsPanel,
     isDetailsPanelOpen,
+    currentDate,
   ])
 
   const handleDrop = async (e: React.DragEvent, day: number) => {
@@ -223,36 +256,72 @@ export default function CalendarPage() {
     )
   }
 
+  const modeToggle = (
+    <div className="inline-flex rounded-lg border border-gray-200 bg-white p-0.5">
+      {(['month', 'week'] as CalendarMode[]).map((m) => (
+        <button
+          key={m}
+          onClick={() => setMode(m)}
+          className={`px-3 py-1 text-sm font-medium rounded-md capitalize transition-colors ${
+            mode === m
+              ? 'bg-indigo-600 text-white'
+              : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          {m}
+        </button>
+      ))}
+    </div>
+  )
+
+  if (mode === 'week') {
+    return (
+      <>
+        <div className="flex items-center justify-end mb-3">{modeToggle}</div>
+        <WeekView
+          items={items}
+          currentDate={currentDate}
+          onPrevWeek={goToPreviousWeek}
+          onNextWeek={goToNextWeek}
+          onToday={goToToday}
+        />
+        <KeyboardShortcutsHelp groups={CALENDAR_SHORTCUTS} />
+      </>
+    )
+  }
+
   return (
-    <div className="bg-white rounded-lg border border-gray-200">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-        <div className="flex items-center gap-4">
-          <h2 className="text-lg font-semibold text-gray-900">
-            {monthNames[month]} {year}
-          </h2>
-          <button
-            onClick={goToToday}
-            className="px-3 py-1 text-sm font-medium text-indigo-600 hover:bg-indigo-50 rounded-lg"
-          >
-            Today
-          </button>
+    <>
+      <div className="flex items-center justify-end mb-3">{modeToggle}</div>
+      <div className="bg-white rounded-lg border border-gray-200">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+          <div className="flex items-center gap-4">
+            <h2 className="text-lg font-semibold text-gray-900">
+              {monthNames[month]} {year}
+            </h2>
+            <button
+              onClick={goToToday}
+              className="px-3 py-1 text-sm font-medium text-indigo-600 hover:bg-indigo-50 rounded-lg"
+            >
+              Today
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={goToPreviousMonth}
+              className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <button
+              onClick={goToNextMonth}
+              className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={goToPreviousMonth}
-            className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <button
-            onClick={goToNextMonth}
-            className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg"
-          >
-            <ChevronRight className="w-5 h-5" />
-          </button>
-        </div>
-      </div>
 
       {/* Day headers */}
       <div className="grid grid-cols-7 border-b border-gray-200">
@@ -318,8 +387,9 @@ export default function CalendarPage() {
         })}
       </div>
 
-      <KeyboardShortcutsHelp groups={CALENDAR_SHORTCUTS} />
-    </div>
+        <KeyboardShortcutsHelp groups={CALENDAR_SHORTCUTS} />
+      </div>
+    </>
   )
 }
 

@@ -17,6 +17,8 @@ export interface Item {
   due_date: string | null // ISO date string (YYYY-MM-DD)
   start_date: string | null
   completed_at: string | null
+  scheduled_start: string | null // ISO datetime (timestamptz)
+  duration_minutes: number
   intention: string | null
   cumulative_time_ms: number
   session_count: number
@@ -108,6 +110,8 @@ export interface CreateItemInput {
   priority?: ItemPriority
   due_date?: string | null
   start_date?: string | null
+  scheduled_start?: string | null
+  duration_minutes?: number
 }
 
 // For updating items
@@ -120,6 +124,8 @@ export interface UpdateItemInput {
   priority?: ItemPriority
   due_date?: string | null
   start_date?: string | null
+  scheduled_start?: string | null
+  duration_minutes?: number
   position?: number
 }
 
