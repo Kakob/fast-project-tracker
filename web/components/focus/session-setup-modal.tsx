@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { X, Play, Clock, AlertTriangle } from 'lucide-react'
+import { X, Play, Clock } from 'lucide-react'
 import { useItems } from '@/lib/hooks/use-items'
 import { useCreateFocusSession, useUpdateFocusSession } from '@/lib/hooks/use-focus-sessions'
 import { useCreateSessionTask } from '@/lib/hooks/use-session-tasks'
@@ -42,7 +42,6 @@ export function SessionSetupModal() {
   >([])
 
   const totalMinutes = queue.reduce((sum, t) => sum + t.allocatedMinutes, 0)
-  const isOverCap = totalMinutes > 60
 
   const availableItems = (items || []).filter(
     (item) =>
@@ -240,12 +239,6 @@ export function SessionSetupModal() {
                 Total: <strong>{totalMinutes} min</strong>
               </span>
             </div>
-            {isOverCap && (
-              <div className="flex items-center gap-1.5 text-sm text-amber-600">
-                <AlertTriangle className="w-4 h-4" />
-                <span>Free tier: 1 hour max (session will auto-end at 60 min)</span>
-              </div>
-            )}
           </div>
 
           <button

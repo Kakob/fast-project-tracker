@@ -10,7 +10,7 @@ interface SessionQueueProps {
   onMoveTask: (from: number, to: number) => void
 }
 
-const TIME_PRESETS = [5, 10, 15, 20, 25, 30, 45, 60]
+const TIME_PRESETS = [5, 10, 15, 20, 25, 30, 45, 60, 120]
 
 export function SessionQueue({
   queue,
