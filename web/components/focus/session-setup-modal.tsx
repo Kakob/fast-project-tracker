@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { X, Play, Clock } from 'lucide-react'
-import { useItems } from '@/lib/hooks/use-items'
+import { useItems, useCreateItem } from '@/lib/hooks/use-items'
 import { useCreateFocusSession, useUpdateFocusSession } from '@/lib/hooks/use-focus-sessions'
 import { useCreateSessionTask } from '@/lib/hooks/use-session-tasks'
 import { useSessionTemplates } from '@/lib/hooks/use-session-templates'
@@ -26,6 +26,7 @@ export function SessionSetupModal() {
   const { data: items } = useItems()
   const { data: templates } = useSessionTemplates()
   const { data: globalReminders } = useGlobalReminders()
+  const createItem = useCreateItem()
   const createSession = useCreateFocusSession()
   const updateSession = useUpdateFocusSession()
   const createSessionTask = useCreateSessionTask()
@@ -57,6 +58,19 @@ export function SessionSetupModal() {
       { item, allocatedMinutes: 15, warningBufferSec: 180 },
     ])
   }, [])
+
+  const quickCreateTask = useCallback(
+    async (title: string) => {
+      try {
+        const item = await createItem.mutateAsync({ title, status: 'todo' })
+        addTask(item)
+        setSearch('')
+      } catch (error) {
+        console.error('Failed to create task:', error)
+      }
+    },
+    [createItem, addTask]
+  )
 
   const removeTask = useCallback((index: number) => {
     setQueue((prev) => prev.filter((_, i) => i !== index))
@@ -204,6 +218,8 @@ export function SessionSetupModal() {
                 search={search}
                 onSearchChange={setSearch}
                 onAddTask={addTask}
+                onQuickCreate={quickCreateTask}
+                isCreating={createItem.isPending}
               />
             </div>
 
